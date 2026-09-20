@@ -1,0 +1,184 @@
+\documentclass[a4paper,12pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[english,russian]{babel}
+\usepackage[T2A]{fontenc}
+
+\usepackage[
+  a4paper, mag=1000, includefoot,
+  left=1.1cm, right=1.1cm, top=1.2cm, bottom=1.2cm, headsep=0.8cm, footskip=0.8cm
+]{geometry}
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{times}
+\usepackage{mathptmx}
+
+\IfFileExists{pscyr.sty}
+{
+  \usepackage{pscyr}
+  \def\rmdefault{ftm}
+  \def\sfdefault{ftx}
+  \def\ttdefault{fer}
+  \DeclareMathAlphabet{\mathbf}{OT1}{ftm}{bx}{it} % bx/it or bx/m
+}
+
+\mathsurround=0.1em
+\clubpenalty=1000%
+\widowpenalty=1000%
+\brokenpenalty=2000%
+\frenchspacing%
+\tolerance=2500%
+\hbadness=1500%
+\vbadness=1500%
+\doublehyphendemerits=50000%
+\finalhyphendemerits=25000%
+\adjdemerits=50000%
+
+
+\begin{document}
+
+\author{Коренев Иван}
+\title{Метод Гаусса решения линейной системы с выбором главного элемента по всей матрице.}
+\date{\today}
+\maketitle
+
+% \begin{center}
+% \bf{Постановка задачи}
+% \end{center}
+
+
+\section{Постановка задачи}
+Решается система $Ax = y$ с вещественной квадратной матрицей коээфициентов размера $n$, где $x, y \in \mathbb{R}^n$ - столбцы неизвестных и свободных членов, соответственно, с помощью метода Гаусса с выбором главного элемента по всей матрице.
+
+\section{Описание хранения данных}
+Матрица хранится в одномерном массиве $A$ поблочно, сами блоки хранятся построчно. Для массива $A$ выделяется ровно $n^2$ элементов. Вектора правой части и неизвестных хранятся в одномерных массивах длины $n$. Координаты элемента матрицы $A$ в самой матрице называются глобальными, в блоке - локальными.
+
+Все индексы и номер шага начинаются с $0$.
+\subsection{Разбиение на блоки}
+Пусть $n = m k + l, k = \lfloor \frac{n}{m} \rfloor, 0 \leq l < m$. При $l = 0$ блоки с номером $k$ отсутствуют. При $l > 0$ разбиение имеет вид:
+\[
+    A =
+    \begin{pmatrix}
+        A_{0, 0}^{m \times m} & \cdots & A_{0, k - 1}^{m \times m} & A_{0, k}^{m \times l}     \\
+        \vdots & \ddots & \vdots & \vdots                    \\
+        A_{k - 1, 0}^{m \times m} & \cdots & A_{k - 1, k - 1}^{m \times m} & A_{k - 1, k}^{m \times l} \\
+        A_{k, 0}^{l \times m} & \cdots & A_{k, k - 1}^{l \times m}. & A_{k, k}^{l \times l}
+    \end{pmatrix}.
+\]
+
+При $k = 0$ имеется только блок $A_{0, 0}^{l \times l}$.
+
+Размер блока в одном направлении равен $\operatorname{size}(i) = \min(m, n - i m)$. Связь локальных и глобальных координат имеет вид:
+\[
+    \left(A_{i, j}^{\operatorname{size}(i) \times \operatorname{size}(j)} \right)_{p, q} = a_{i m + p, j m + q},
+\]
+\[
+    0 \leq i, j < \left\lceil \frac{n}{m} \right\rceil, 0 \leq p < \operatorname{size}(i), 0 \leq q < \operatorname{size}(j).
+\]
+
+Элемент $(p, q)$ блока с номерами $(i, j)$ находится в массиве $A$ по индексу
+\[
+    m (i n + j \operatorname{size}(i)) + p \operatorname{size}(j) + q,
+\]
+с теми же множеством индексов.
+
+Номер шага указывается в скобках справа сверху.
+
+\section{Описание функций}
+В функциях $i, j$ - номера блока, $W$ - рабочий массив, $wr, wc$ - число строк и столбцов блока, соответственно. Размеры блока равны $wr = \operatorname{size}(i)$, $wc = \operatorname{size}(j)$. Элемент с локальными координатами $(p, q)$ хранится в $W$ по индексу $p \, wc + q$.
+
+\begin{enumerate}
+    \item size(i) возвращает фактический размер блока в одном направлении.
+    \item set\_block(A, i, j, W, wr, wc) копирует $wr \, wc$ элементов из $W$ в $A$, начиная с индекса $i m n + j m \, wr$. Остальные блоки не изменяются.
+    \item get\_block(A, i, j, W, wr, wc) копирует $wr \, wc$ элементов из $A$, начиная с того же индекса, в $W$. Матрица $A$ не изменяется.
+\end{enumerate}
+
+\section{Формулы метода}
+\subsection{Прямой ход метода Гаусса}
+На шаге $\alpha = 0, \ldots, n - 1$ выбирается максимальный по модулю элемент подматрицы $(a_{i, j})_{\alpha \leq i, j < n}$. Поиск идёт по блокам среди элементов
+\[
+    \left| \left[ \left(A_{i, j}^{\operatorname{size}(i) \times \operatorname{size}(j)} \right)^{(\alpha)} \right]_{p, q} \right|,
+\]
+\[
+    \left\lfloor \frac{\alpha}{m} \right\rfloor \leq i, j < \left\lceil \frac{n}{m} \right\rceil.
+\]
+\[
+    \max(0, \alpha - i m) \leq p < \operatorname{size}(i),
+\]
+\[
+    \max(0, \alpha - j m) \leq q < \operatorname{size}(j).
+\]
+Строка и столбец выбранного элемента меняются местами со строкой и столбцом $\alpha$. Вместе со строками меняются элементы правой части. Обмены выполняются  физически путем обхода. Перестановки столбцов сохраняются для восстановления порядка неизвестных. Далее индекс $(\alpha)$ будет обозначать данные после обменов.
+
+После выбора главного элемента и перестановок в каждом блоке обновляются элементы с глобальными индексами больше $\alpha$:
+\begin{align*}
+    \left[ \left(A_{i, j}^{\operatorname{size}(i) \times \operatorname{size}(j)} \right)^{(\alpha + 1)} \right]_{p, q}
+    & = \left[ \left(A_{i, j}^{\operatorname{size}(i) \times \operatorname{size}(j)} \right)^{(\alpha)} \right]_{p, q} - \frac{a_{i m + p, \alpha}^{(\alpha)}}{a_{\alpha \alpha}^{(\alpha)}} a_{\alpha, j m + q}^{(\alpha)},
+\end{align*}
+\[
+    0 \leq i, j < \left\lceil \frac{n}{m} \right\rceil, \
+    \max(0, \alpha + 1 - i m) \leq p < \operatorname{size}(i), \
+    \max(0, \alpha + 1 - j m) \leq q < \operatorname{size}(j).
+\]
+Правая часть обновляется по формуле:
+\[
+    y_{i m + p}^{(\alpha + 1)} = y_{i m + p}^{(\alpha)} -
+    \frac{a_{i m + p, \alpha}^{(\alpha)}}{a_{\alpha \alpha}^{(\alpha)}}
+    y_\alpha^{(\alpha)},
+\]
+\[
+    0 \leq i < \left\lceil \frac{n}{m} \right\rceil, \qquad
+    \max(0, \alpha + 1 - i m) \leq p < \operatorname{size}(i).
+\]
+Отношение $\frac{a_{i m + p, \alpha}^{(\alpha)}}{a_{\alpha \alpha}^{(\alpha)}}$ в формулах вычисляется один раз на строку и используется для всех её блоков. Правая часть обновляется один раз на строку. После сохранения множителей элементы столбца $\alpha$ ниже диагонали обнуляются. Остальные элементы сохраняются. При $\alpha = n - 1$ проверяется последний главный элемент, $A^{(n)} = A^{(n - 1)}$, $y^{(n)} = y^{(n - 1)}$.
+
+После выполнения прямого хода метода Гаусса получаем верхнетреугольную матрицу.
+
+\subsection{Обратный ход метода Гаусса}
+Находим неизвестные, идя в обратном порядке. В текущем порядке столбцов неизвестные находятся по формуле
+\begin{align*}
+    \left[ \left(A_{i, i}^{\operatorname{size}(i) \times \operatorname{size}(i)} \right)^{(n)} \right]_{p, p} x_{i m + p}^{(n)} = y_{i m + p}^{(n)} & \quad - \sum_{j = i + 1}^{\left\lceil \frac{n}{m} \right\rceil - 1} \sum_{q = 0}^{\operatorname{size}(j) - 1} - \left[ \left(A_{i, j}^{\operatorname{size}(i) \times \operatorname{size}(j)} \right)^{(n)} \right]_{p, q} x_{j m + q}^{(n)} - \\
+    & \quad - \sum_{q = p + 1}^{\operatorname{size}(i) - 1}
+    \left[ \left(A_{i, i}^{\operatorname{size}(i) \times \operatorname{size}(i)}
+    \right)^{(n)} \right]_{p, q} x_{i m + q}^{(n)}.
+\end{align*}
+\[
+    i = \left\lceil \frac{n}{m} \right\rceil - 1, \ldots, 0, \
+    p = \operatorname{size}(i) - 1, \ldots, 0.
+\]
+Пустые суммы равны нулю. Для получения $x$ к $x^{(n)}$ применяются сохранённые перестановки в обратном порядке.
+
+\section{Число операций}
+    На шаге $\alpha$ прямого хода вычисление множителей требует $n - \alpha - 1$ делений, обновление правой части - $2(n - \alpha - 1)$ операций, обновление матрицы - $2(n - \alpha - 1)^2$ операций. Число операций прямого хода равно
+\[
+    \sum_{\alpha = 0}^{n - 1}\bigl(2(n - \alpha - 1)^2 + 3(n - \alpha - 1)\bigr)
+    = \frac{2}{3} n^3 + \frac{1}{2} n^2 - \frac{7}{6} n.
+\]
+Обратный ход требует
+\[
+    \sum_{i = 0}^{n - 1}\bigl(2(n - i - 1) + 1\bigr) = n^2.
+\]
+Суммарное число арифметических операций:
+\[
+    \frac{2}{3} n^3 + \frac{3}{2} n^2 - \frac{7}{6} n
+    = C_1 n^3 + C_2 n^2 m + C_3 n m^2 + C_4 m^3 + O(n^2 + n m + m^2),
+\]
+\[
+    \boxed{C_1 = \frac{2}{3}, \qquad C_2 = C_3 = C_4 = 0.}
+\]
+
+% Поиск главного элемента на шаге $\alpha$ требует $(n - \alpha)^2$ вычислений модуля, $(n - \alpha)^2 - 1$ сравнений и одной проверки на нуль. Считая каждое действие за одну операцию, получаем дополнительно
+% \[
+%     2\sum_{\alpha = 0}^{n - 1}(n - \alpha)^2 = \frac{2}{3} n^3 + n^2 + \frac{1}{3} n.
+% \]
+% С учётом поиска главного элемента общее число операций равно
+% \[
+%     \frac{4}{3} n^3 + \frac{5}{2} n^2 - \frac{5}{6} n = C_1 n^3 + C_2 n^2 m + C_3 n m^2 + C_4 m^3 + O(n^2 + n m + m^2),
+% \]
+% \[
+%     \boxed{C_1 = \frac{4}{3}, \qquad C_2 = C_3 = C_4 = 0.}
+% \]
+
+\section{Проверка формул}
+
+\end{document}
