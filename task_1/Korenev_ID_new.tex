@@ -13,6 +13,8 @@
 \usepackage{times}
 \usepackage{mathptmx}
 
+\newcommand{\br}[1]{\left(#1\right)}
+
 \IfFileExists{pscyr.sty}
 {
   \usepackage{pscyr}
@@ -48,7 +50,7 @@
 
 
 \section{Постановка задачи}
-Решается система $Ax = y$ с вещественной квадратной матрицей коээфициентов размера $n$, где $x, y \in \mathbb{R}^n$ - столбцы неизвестных и свободных членов, соответственно, с помощью метода Гаусса с выбором главного элемента по всей матрице.
+Решается система $Ax = y$ с вещественной квадратной матрицей коээфициентов размера $n$, где $x, y \in \mathbb{R}^n$ - столбцы неизвестных и свободных членов, соответственно, с помощью блочного метода Гаусса с выбором главного элемента по всей матрице.
 
 \section{Описание хранения данных}
 Матрица хранится в одномерном массиве $A$ поблочно, сами блоки хранятся построчно. Для массива $A$ выделяется ровно $n^2$ элементов. Вектора правой части и неизвестных хранятся в одномерных массивах длины $n$. Координаты элемента матрицы $A$ в самой матрице называются глобальными, в блоке - локальными.
@@ -98,9 +100,72 @@
 
 На шаге $\alpha = 0, \dots, k$ выбирается макимальный по норме блока блок из множества квадратных обратимых блоков. Таким образом, координаты главного блока $(p, q)$ находятся
 \[
-    (p, q) \in \arg \max \left|\left| \left(A_{i, j}^{\operatorname{size}(i) \times \operatorname{size}(j)} \right)^{(\alpha)} \right|\right|,
+    (p, q) \in \arg\min \left|\left| \left(\left(A_{i, j}^{\operatorname{size}(i) \times \operatorname{size}(j)} \right)^{(\alpha)}\right)^{-1} \right|\right|,
 \]
-где норма блока берется как корень из суммы квадратов элементов, $\left|\left| B\right|\right| = \sqrt{\sum b_{ij}^2}$.
+где норма блока берется как корень из суммы квадратов элементов, $\left|\left| B\right|\right| = \sqrt{\sum b_{ij}^2}$, и все матрица, из которых выбираем являются невырожденными. При существовании нескольких вариантов выбора блока берем с наименьшими координатам.
+
+После выбора главного блока производим замену блочных строк $\alpha$ и $p$ и блочных столбцов $\alpha$ и $q$, запоминаем перестановку столбцов, также переставляем соответствующие блоки в столбце свободных членов $y$. Далее индексы идут после переименования
+
+На $\alpha$ шаге будем иметь следующих вид матрицы
+\[
+    \begin{pmatrix}
+        E^{m \times m} & \br{A_{0, 1}^{m \times m}}^{(\alpha)} & \br{A_{0, 2}^{m \times m}}^{(\alpha)} & \dots  & \br{A_{0, \alpha}^{m \times m}}^{(\alpha)}          & \dots  & \br{A_{0, k - 1}^{m \times m}}^{(\alpha)}          & \br{A_{0, k}^{m \times l}}^{(\alpha)}          \\
+        0              & E^{m \times m}                        & \br{A_{1, 2}^{m \times m}}^{(\alpha)} & \dots  & \br{A_{1, \alpha}^{m \times m}}^{(\alpha)}          & \dots  & \br{A_{1, k - 1}^{m \times m}}^{(\alpha)}          & \br{A_{1, k}^{m \times l}}^{(\alpha)}          \\
+        \vdots         & \vdots                                & \vdots                                & \ddots & \vdots                                              & \vdots & \vdots                                             & \vdots                                         \\
+        0              & \dots                                 & 0                                     & \dots  & \br{A_{\alpha, \alpha}^{m \times m}}^{(\alpha)}     & \dots  & \br{A_{\alpha, k - 1}^{m \times m}}^{(\alpha)}     & \br{A_{\alpha, k}^{m \times l}}^{(\alpha)}     \\
+        0              & \dots                                 & 0                                     & \dots  & \br{A_{\alpha + 1, \alpha}^{m \times m}}^{(\alpha)} & \dots  & \br{A_{\alpha + 1, k - 1}^{m \times m}}^{(\alpha)} & \br{A_{\alpha + 1, k}^{m \times l}}^{(\alpha)} \\
+        \vdots         & \vdots                                & \vdots                                & \ddots & \vdots                                              & \vdots & \vdots                                             & \vdots                                         \\
+        0              & \dots                                 & 0                                     & \dots  & \br{A_{k - 1, \alpha}^{m \times m}}^{(\alpha)}      & \dots  & \br{A_{k - 1, k - 1}^{m \times m}}^{(\alpha)}      & \br{A_{k - 1, k}^{m \times l}}^{(\alpha)}      \\
+        0              & \dots                                 & 0                                     & \dots  & \br{A_{k, \alpha}^{l \times m}}^{(\alpha)}          & \dots  & \br{A_{k, k - 1}^{l \times m}}^{(\alpha)}          & \br{A_{k, k}^{l \times l}}^{(\alpha)}          \\
+    \end{pmatrix}.
+\]
+
+Пусть $L = \br{\br{A_{\alpha, \alpha}^{m \times m}}^{(\alpha)}}^{-1}$, находим $L$ обычным методом Гаусса(операциями над строчками). Аналогично будем находить $R$, только операциями над стробцами. Приводим к единичному виду выбранный блок и изменяем соответствующую строку, делаем соответствующие преобразования со стробцов свободных членов.
+\begin{align*}
+    \br{A_{\alpha, \alpha}^{m \times m}}^{(\alpha + 1)}     & = E^{m \times m} \\
+    \br{A_{\alpha, j}^{m \times m}}^{(\alpha + 1)}          & = L \br{A_{\alpha, j}^{m \times m}}^{(\alpha)}, \ j = \alpha + 1, \dots, k - 1 \\
+    \br{y_{\alpha}^{m \times 1}}^{(\alpha + 1)}             & = \br{y_{\alpha}^{m \times 1}}^{(\alpha)} - L \br{y_{\alpha}^{m \times 1}}^{(\alpha)} \\
+    \br{A_{\alpha, k}^{m \times l}}^{(\alpha + 1)}          & = L \br{A_{\alpha, k}^{m \times l}}^{(\alpha)}, \text{ если } l \neq 0
+\end{align*}
+Обновляем блоки, стоящие ниже строки выбранного блока и столбец свободных членов
+\begin{align*}
+    \br{A_{i, j}^{m \times m}}^{(\alpha + 1)} & = \br{A_{i, j}^{m \times m}}^{(\alpha)} - \br{A_{i, \alpha}^{m \times m}}^{(\alpha)} \br{A_{\alpha, j}^{m \times m}}^{(\alpha)}, \ i, j = \alpha + 1, \dots, k - 1 \\
+    \br{A_{i, k}^{m \times l}}^{(\alpha + 1)} & = \br{A_{i, k}^{m \times l}}^{(\alpha)} - \br{A_{i, \alpha}^{m \times m}}^{(\alpha)} \br{A_{i, k}^{m \times l}}^{(\alpha)}, \ i = \alpha + 1, \dots k - 1, \ l \neq 0 \\
+    \br{y_{i}^{m \times 1}}^{(\alpha + 1)} & = \br{y_{i}^{m \times 1}}^{(\alpha)} - \br{A_{i, \alpha}^{m \times m}}^{(\alpha)} \br{y_{\alpha}^{m \times 1}}^{(\alpha)}, \ i = \alpha + 1, \dots, k - 1 \\
+    \br{A_{k, j}^{l \times m}}^{(\alpha + 1)} & = \br{A_{k, j}^{l \times m}}^{(\alpha)} - \br{A_{k, j}^{l \times m}}^{(\alpha)} R, \ j = \alpha + 1, \dots, k - 1, \ l \neq 0 \\
+    \br{A_{i, \alpha}^{m \times m}}^{(\alpha + 1)} & = 0, \ i = \alpha + 1, \dots, k - 1 \\
+    \br{A_{k, \alpha}^{l \times m}}^{(\alpha + 1)} & = 0, \ l \neq 0 \\
+\end{align*}
+
+После выполнения всех шагов получим матрицу
+\[
+    \begin{pmatrix}
+        E^{m \times m} & \br{A_{0, 1}^{m \times m}}^{(k - 1)} & \br{A_{0, 2}^{m \times m}}^{(k - 1)} & \dots  & \br{A_{0, k - 1}^{m \times m}}^{(k - 1)} & \br{A_{0, k}^{m \times l}}^{(k - 1)}        & \br{y_{0, k}^{m \times l}}^{(k - 1)}  \\
+        0              & E^{m \times m}                       & \br{A_{1, 2}^{m \times m}}^{(k - 1)} & \dots  & \br{A_{1, k - 1}^{m \times m}}^{(k - 1)} & \br{A_{1, k}^{m \times l}}^{(k - 1)}        & \br{y_{1, k}^{m \times l}}^{(k - 1)}  \\
+        \vdots         & \vdots                               & \vdots                               & \ddots & \vdots                                   & \vdots                                      & \vdots                               \\
+        0              & 0                                    &  0                                   & \dots  & E^{m \times m}                           & \br{A_{k - 1, k}^{m \times l}}^{\br{k - 1}} & \br{y_{k - 1}^{m \times 1}}^{(k - 1)}  \\
+        0              & 0                                    &  0                                   & \dots  & 0                                        & \br{A_{k, k}^{l \times l}}^{(k - 1)}        & \br{y_{k}^{l \times 1}}^{(k - 1)}
+    \end{pmatrix}.
+\]
+
+Если $l \neq 0$, то остается решить систему из последней строчки. Для этого будет необходимо найти обратную матрицу размера $l \times l$.
+\begin{align*}
+    \br{{A_{k, k}^{l \times l}}}^{(k)} & = E^{l \times l} \\
+    \br{{y_{k}^{l \times 1}}}^{(k)} & = \br{{y_{k}^{l \times 1}}}^{(k - 1)} - \br{\br{{A_{k, k}^{l \times l}}}^{(k - 1)}}^{-1} \br{{y_{k}^{l \times 1}}}^{(k - 1)}
+\end{align*}
+
+\subsection{Обратных ход метода Гаусса}
+После выполнения прямого хода метода Гаусса матрица будет иметь следующий вид( с опущенными индексами хода):
+\[
+    \begin{pmatrix}
+        E^{m \times m} & A_{0, 1}^{m \times m} & \dots  & A_{0, k - 1}^{m \times m} & A_{0, k}^{m \times l}     & y_{0}^{m \times 1}     \\
+        0              & E^{m \times m}        & \dots  & A_{1, k - 1}^{m \times m} & A_{1, k}^{m \times l}     & y_{1}^{m \times 1}     \\
+        \vdots.        & \vdots                & \ddots & \vdots                    & \vdots                    & \vdots                 \\
+        0              & 0                     & \dots  & E^{m \times m}            & A_{k - 1, k}^{m \times l} & y_{k - 1}^{m \times 1} \\
+        0              & 0                     & \dots  & 0                         & E^{l \times l}            & y_{k}^{m \times 1} 
+    \end{pmatrix}.
+\]
+
 % \section{Формулы метода}
 % \subsection{Прямой ход метода Гаусса}
 % На шаге $\alpha = 0, \ldots, n - 1$ выбирается максимальный по модулю элемент подматрицы $(a_{i, j})_{\alpha \leq i, j < n}$. Поиск идёт по блокам среди элементов
