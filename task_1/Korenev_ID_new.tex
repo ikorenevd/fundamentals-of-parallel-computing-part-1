@@ -98,10 +98,13 @@
 \section{Формулы метода}
 \subsection{Прямой ход метода Гаусса}
 
-На шаге $\alpha = 0, \dots, k$ выбирается макимальный по норме блока блок из множества квадратных обратимых блоков. Таким образом, координаты главного блока $(p, q)$ находятся
+На шаге $\alpha = 0, \dots, k$ выбирается невырожденных блок, у которого норма обратной матрицы минимальна. Таким образом, координаты главного блока $(p, q)$ находятся
 \[
-    (p, q) \in \arg\min \left|\left| \left(\left(A_{i, j}^{\operatorname{size}(i) \times \operatorname{size}(j)} \right)^{(\alpha)}\right)^{-1} \right|\right|,
-\]
+    (p,q) \in \underset
+    {\substack{\alpha \le i,j < k \\ \text{неворожденна}}}
+    {\arg\min}
+    \left\| \left(\br{A_{i,j}^{m \times m}}^{(\alpha)}\right)^{-1} \right\|
+\],
 где норма блока берется как корень из суммы квадратов элементов, $\left|\left| B\right|\right| = \sqrt{\sum b_{ij}^2}$, и все матрица, из которых выбираем являются невырожденными. При существовании нескольких вариантов выбора блока берем с наименьшими координатам.
 
 После выбора главного блока производим замену блочных строк $\alpha$ и $p$ и блочных столбцов $\alpha$ и $q$, запоминаем перестановку столбцов, также переставляем соответствующие блоки в столбце свободных членов $y$. Далее индексы идут после переименования
@@ -116,7 +119,7 @@
         0              & \dots                                 & 0                                     & \dots  & \br{A_{\alpha + 1, \alpha}^{m \times m}}^{(\alpha)} & \dots  & \br{A_{\alpha + 1, k - 1}^{m \times m}}^{(\alpha)} & \br{A_{\alpha + 1, k}^{m \times l}}^{(\alpha)} \\
         \vdots         & \vdots                                & \vdots                                & \ddots & \vdots                                              & \vdots & \vdots                                             & \vdots                                         \\
         0              & \dots                                 & 0                                     & \dots  & \br{A_{k - 1, \alpha}^{m \times m}}^{(\alpha)}      & \dots  & \br{A_{k - 1, k - 1}^{m \times m}}^{(\alpha)}      & \br{A_{k - 1, k}^{m \times l}}^{(\alpha)}      \\
-        0              & \dots                                 & 0                                     & \dots  & \br{A_{k, \alpha}^{l \times m}}^{(\alpha)}          & \dots  & \br{A_{k, k - 1}^{l \times m}}^{(\alpha)}          & \br{A_{k, k}^{l \times l}}^{(\alpha)}          \\
+        0              & \dots                                 & 0                                     & \dots  & \br{A_{k, \alpha}^{l \times m}}^{(\alpha)}          & \dots  & \br{A_{k, k - 1}^{l \times m}}^{(\alpha)}          & \br{A_{k, k}^{l \times l}}^{(\alpha)}
     \end{pmatrix}.
 \]
 
@@ -124,15 +127,17 @@
 \begin{align*}
     \br{A_{\alpha, \alpha}^{m \times m}}^{(\alpha + 1)}     & = E^{m \times m} \\
     \br{A_{\alpha, j}^{m \times m}}^{(\alpha + 1)}          & = L \br{A_{\alpha, j}^{m \times m}}^{(\alpha)}, \ j = \alpha + 1, \dots, k - 1 \\
-    \br{y_{\alpha}^{m \times 1}}^{(\alpha + 1)}             & = \br{y_{\alpha}^{m \times 1}}^{(\alpha)} - L \br{y_{\alpha}^{m \times 1}}^{(\alpha)} \\
+    \br{y_{\alpha}^{m \times 1}}^{(\alpha + 1)}             & = L \br{y_{\alpha}^{m \times 1}}^{(\alpha)} \\
     \br{A_{\alpha, k}^{m \times l}}^{(\alpha + 1)}          & = L \br{A_{\alpha, k}^{m \times l}}^{(\alpha)}, \text{ если } l \neq 0
 \end{align*}
 Обновляем блоки, стоящие ниже строки выбранного блока и столбец свободных членов
 \begin{align*}
-    \br{A_{i, j}^{m \times m}}^{(\alpha + 1)} & = \br{A_{i, j}^{m \times m}}^{(\alpha)} - \br{A_{i, \alpha}^{m \times m}}^{(\alpha)} \br{A_{\alpha, j}^{m \times m}}^{(\alpha)}, \ i, j = \alpha + 1, \dots, k - 1 \\
-    \br{A_{i, k}^{m \times l}}^{(\alpha + 1)} & = \br{A_{i, k}^{m \times l}}^{(\alpha)} - \br{A_{i, \alpha}^{m \times m}}^{(\alpha)} \br{A_{i, k}^{m \times l}}^{(\alpha)}, \ i = \alpha + 1, \dots k - 1, \ l \neq 0 \\
-    \br{y_{i}^{m \times 1}}^{(\alpha + 1)} & = \br{y_{i}^{m \times 1}}^{(\alpha)} - \br{A_{i, \alpha}^{m \times m}}^{(\alpha)} \br{y_{\alpha}^{m \times 1}}^{(\alpha)}, \ i = \alpha + 1, \dots, k - 1 \\
-    \br{A_{k, j}^{l \times m}}^{(\alpha + 1)} & = \br{A_{k, j}^{l \times m}}^{(\alpha)} - \br{A_{k, j}^{l \times m}}^{(\alpha)} R, \ j = \alpha + 1, \dots, k - 1, \ l \neq 0 \\
+    \br{A_{i, j}^{m \times m}}^{(\alpha + 1)} & = \br{A_{i, j}^{m \times m}}^{(\alpha)} - \br{A_{i, \alpha}^{m \times m}}^{(\alpha)} \br{A_{\alpha, j}^{m \times m}}^{(\alpha + 1)}, \ i, j = \alpha + 1, \dots, k - 1 \\
+    \br{A_{i, k}^{m \times l}}^{(\alpha + 1)} & = \br{A_{i, k}^{m \times l}}^{(\alpha)} - \br{A_{i, \alpha}^{m \times m}}^{(\alpha)} \br{A_{\alpha, k}^{m \times l}}^{(\alpha + 1)}, \ i = \alpha + 1, \dots k - 1, \ l \neq 0 \\
+    \br{y_{i}^{m \times 1}}^{(\alpha + 1)} & = \br{y_{i}^{m \times 1}}^{(\alpha)} - \br{A_{i, \alpha}^{m \times m}}^{(\alpha)} \br{y_{\alpha}^{m \times 1}}^{(\alpha + 1)}, \ i = \alpha + 1, \dots, k - 1 \\
+    \br{A_{k, j}^{l \times m}}^{(\alpha + 1)} & = \br{A_{k, \alpha}^{l \times m}}^{(\alpha)} - \br{A_{k, j}^{l \times m}}^{(\alpha)} \br{A_{\alpha, j}^{m \times m}}^{(\alpha + 1)}, \ j = \alpha + 1, \dots, k - 1, \ l \neq 0 \\
+    \br{A_{k, k}^{l \times l}}^{(\alpha + 1)} & = \br{A_{k, k}^{l \times l}}^{(\alpha)} - \br{A_{k, \alpha}^{l \times m}}^{(\alpha)} \br{A_{\alpha, k}^{m \times l}}^{(\alpha + 1)}, \ l \neq 0 \\
+    \br{y_{k}^{l \times 1}}^{(\alpha + 1)} & = \br{y_{k}^{l \times 1}}^{(\alpha)} - \br{A_{k, \alpha}^{l \times m}}^{(\alpha)} \br{y_{\alpha}^{m \times 1}}^{(\alpha + 1)}, \ l \neq 0 \\
     \br{A_{i, \alpha}^{m \times m}}^{(\alpha + 1)} & = 0, \ i = \alpha + 1, \dots, k - 1 \\
     \br{A_{k, \alpha}^{l \times m}}^{(\alpha + 1)} & = 0, \ l \neq 0 \\
 \end{align*}
@@ -140,86 +145,29 @@
 После выполнения всех шагов получим матрицу
 \[
     \begin{pmatrix}
-        E^{m \times m} & \br{A_{0, 1}^{m \times m}}^{(k - 1)} & \br{A_{0, 2}^{m \times m}}^{(k - 1)} & \dots  & \br{A_{0, k - 1}^{m \times m}}^{(k - 1)} & \br{A_{0, k}^{m \times l}}^{(k - 1)}        & \br{y_{0, k}^{m \times l}}^{(k - 1)}  \\
-        0              & E^{m \times m}                       & \br{A_{1, 2}^{m \times m}}^{(k - 1)} & \dots  & \br{A_{1, k - 1}^{m \times m}}^{(k - 1)} & \br{A_{1, k}^{m \times l}}^{(k - 1)}        & \br{y_{1, k}^{m \times l}}^{(k - 1)}  \\
-        \vdots         & \vdots                               & \vdots                               & \ddots & \vdots                                   & \vdots                                      & \vdots                               \\
-        0              & 0                                    &  0                                   & \dots  & E^{m \times m}                           & \br{A_{k - 1, k}^{m \times l}}^{\br{k - 1}} & \br{y_{k - 1}^{m \times 1}}^{(k - 1)}  \\
-        0              & 0                                    &  0                                   & \dots  & 0                                        & \br{A_{k, k}^{l \times l}}^{(k - 1)}        & \br{y_{k}^{l \times 1}}^{(k - 1)}
+        E^{m \times m} & \br{A_{0, 1}^{m \times m}}^{(k)}     & \br{A_{0, 2}^{m \times m}}^{(k)}     & \dots  & \br{A_{0, k - 1}^{m \times m}}^{(k)}     & \br{A_{0, k}^{m \times l}}^{(k)}        & \br{y_{0}^{m \times 1}}^{(k)}     \\
+        0              & E^{m \times m}                       & \br{A_{1, 2}^{m \times m}}^{(k)}     & \dots  & \br{A_{1, k - 1}^{m \times m}}^{(k)}     & \br{A_{1, k}^{m \times l}}^{(k)}        & \br{y_{1}^{m \times 1}}^{(k)}     \\
+        \vdots         & \vdots                               & \vdots                               & \ddots & \vdots                                   & \vdots                                  & \vdots                            \\
+        0              & 0                                    &  0                                   & \dots  & E^{m \times m}                           & \br{A_{k - 1, k}^{m \times l}}^{\br{k}} & \br{y_{k - 1}^{m \times 1}}^{(k)} \\
+        0              & 0                                    &  0                                   & \dots  & 0                                        & \br{A_{k, k}^{l \times l}}^{(k)}        & \br{y_{k}^{l \times 1}}^{(k)}
     \end{pmatrix}.
 \]
 
 Если $l \neq 0$, то остается решить систему из последней строчки. Для этого будет необходимо найти обратную матрицу размера $l \times l$.
 \begin{align*}
-    \br{{A_{k, k}^{l \times l}}}^{(k)} & = E^{l \times l} \\
-    \br{{y_{k}^{l \times 1}}}^{(k)} & = \br{{y_{k}^{l \times 1}}}^{(k - 1)} - \br{\br{{A_{k, k}^{l \times l}}}^{(k - 1)}}^{-1} \br{{y_{k}^{l \times 1}}}^{(k - 1)}
+    \br{{A_{k, k}^{l \times l}}}^{(k + 1)} & = E^{l \times l} \\
+    \br{{y_{k}^{l \times 1}}}^{(k + 1)} & = \br{\br{{A_{k, k}^{l \times l}}}^{(k)}}^{-1} \br{{y_{k}^{l \times 1}}}^{(k)}
 \end{align*}
 
-\subsection{Обратных ход метода Гаусса}
-После выполнения прямого хода метода Гаусса матрица будет иметь следующий вид( с опущенными индексами хода):
-\[
-    \begin{pmatrix}
-        E^{m \times m} & A_{0, 1}^{m \times m} & \dots  & A_{0, k - 1}^{m \times m} & A_{0, k}^{m \times l}     & y_{0}^{m \times 1}     \\
-        0              & E^{m \times m}        & \dots  & A_{1, k - 1}^{m \times m} & A_{1, k}^{m \times l}     & y_{1}^{m \times 1}     \\
-        \vdots.        & \vdots                & \ddots & \vdots                    & \vdots                    & \vdots                 \\
-        0              & 0                     & \dots  & E^{m \times m}            & A_{k - 1, k}^{m \times l} & y_{k - 1}^{m \times 1} \\
-        0              & 0                     & \dots  & 0                         & E^{l \times l}            & y_{k}^{m \times 1} 
-    \end{pmatrix}.
-\]
+\subsection{Обратный ход метода Гаусса}
+После прямого хода диагональные блоки единичные. Индексы хода опускаем. Находим неизвестные в текущем порядке столбцов, начиная с последней блочной строки:
+\begin{align*}
+    x_{k}^{l \times 1} & = y_{k}^{l \times 1}, \ l \neq 0, \\
+    x_{i}^{m \times 1} & = y_{i}^{m \times 1} - \sum_{j = i + 1}^{k - 1} A_{i, j}^{m \times m} x_{j}^{m \times 1} - A_{i, k}^{m \times l} x_{k}^{l \times 1}, \ i = k - 1, \dots, 0, l \neq 0, \\
+    x_{i}^{m \times 1} & = y_{i}^{m \times 1} - \sum_{j = i + 1}^{k - 1} A_{i, j}^{m \times m} x_{j}^{m \times 1}, \ i = k - 1, \dots, 0, \ l = 0.
+\end{align*}
 
-% \section{Формулы метода}
-% \subsection{Прямой ход метода Гаусса}
-% На шаге $\alpha = 0, \ldots, n - 1$ выбирается максимальный по модулю элемент подматрицы $(a_{i, j})_{\alpha \leq i, j < n}$. Поиск идёт по блокам среди элементов
-% \[
-%     \left| \left[ \left(A_{i, j}^{\operatorname{size}(i) \times \operatorname{size}(j)} \right)^{(\alpha)} \right]_{p, q} \right|,
-% \]
-% \[
-%     \left\lfloor \frac{\alpha}{m} \right\rfloor \leq i, j < \left\lceil \frac{n}{m} \right\rceil.
-% \]
-% \[
-%     \max(0, \alpha - i m) \leq p < \operatorname{size}(i),
-% \]
-% \[
-%     \max(0, \alpha - j m) \leq q < \operatorname{size}(j).
-% \]
-% Строка и столбец выбранного элемента меняются местами со строкой и столбцом $\alpha$. Вместе со строками меняются элементы правой части. Обмены выполняются  физически. Перестановки столбцов сохраняются для восстановления порядка неизвестных. Далее индекс $(\alpha)$ будет обозначать данные после обменов.
-
-% После выбора главного элемента и перестановок в каждом блоке обновляются элементы с глобальными индексами больше $\alpha$:
-% \begin{align*}
-%     \left[ \left(A_{i, j}^{\operatorname{size}(i) \times \operatorname{size}(j)} \right)^{(\alpha + 1)} \right]_{p, q}
-%     & = \left[ \left(A_{i, j}^{\operatorname{size}(i) \times \operatorname{size}(j)} \right)^{(\alpha)} \right]_{p, q} - \frac{a_{i m + p, \alpha}^{(\alpha)}}{a_{\alpha \alpha}^{(\alpha)}} a_{\alpha, j m + q}^{(\alpha)},
-% \end{align*}
-% \[
-%     0 \leq i, j < \left\lceil \frac{n}{m} \right\rceil, \
-%     \max(0, \alpha + 1 - i m) \leq p < \operatorname{size}(i), \
-%     \max(0, \alpha + 1 - j m) \leq q < \operatorname{size}(j).
-% \]
-% Правая часть обновляется по формуле:
-% \[
-%     y_{i m + p}^{(\alpha + 1)} = y_{i m + p}^{(\alpha)} -
-%     \frac{a_{i m + p, \alpha}^{(\alpha)}}{a_{\alpha \alpha}^{(\alpha)}}
-%     y_\alpha^{(\alpha)},
-% \]
-% \[
-%     0 \leq i < \left\lceil \frac{n}{m} \right\rceil, \qquad
-%     \max(0, \alpha + 1 - i m) \leq p < \operatorname{size}(i).
-% \]
-% Отношение $\frac{a_{i m + p, \alpha}^{(\alpha)}}{a_{\alpha \alpha}^{(\alpha)}}$ в формулах вычисляется один раз на строку и используется для всех блоков, ее содержащих. Правая часть обновляется один раз на строку. После сохранения множителей элементы столбца $\alpha$ ниже диагонали обнуляются. Остальные элементы сохраняются. При $\alpha = n - 1$ проверяется последний главный элемент, $A^{(n)} = A^{(n - 1)}$, $y^{(n)} = y^{(n - 1)}$.
-
-% После выполнения прямого хода получаем верхнетреугольную матрицу.
-
-% \subsection{Обратный ход метода Гаусса}
-% Находим неизвестные, идя в обратном порядке. В текущем порядке столбцов неизвестные находятся по формуле
-% \begin{align*}
-%     \left[ \left(A_{i, i}^{\operatorname{size}(i) \times \operatorname{size}(i)} \right)^{(n)} \right]_{p, p} x_{i m + p}^{(n)} = y_{i m + p}^{(n)} & \quad - \sum_{j = i + 1}^{\left\lceil \frac{n}{m} \right\rceil - 1} \sum_{q = 0}^{\operatorname{size}(j) - 1} \left[ \left(A_{i, j}^{\operatorname{size}(i) \times \operatorname{size}(j)} \right)^{(n)} \right]_{p, q} x_{j m + q}^{(n)} -  \\
-%     & - \sum_{q = p + 1}^{\operatorname{size}(i) - 1}
-%     \left[ \left(A_{i, i}^{\operatorname{size}(i) \times \operatorname{size}(i)}
-%     \right)^{(n)} \right]_{p, q} x_{i m + q}^{(n)}.
-% \end{align*}
-% \[
-%     i = \left\lceil \frac{n}{m} \right\rceil - 1, \ldots, 0, \
-%     p = \operatorname{size}(i) - 1, \ldots, 0.
-% \]
-% Для получения $x$ к $x^{(n)}$ применяются сохранённые перестановки в обратном порядке.
+Для восстановления исходного порядка неизвестных применяем к блокам вектора $x$ сохраненные перестановки столбцов в обратном порядке.
 
 % \section{Число операций}
 %     Оценка дана для невырожденной матрицы. 
