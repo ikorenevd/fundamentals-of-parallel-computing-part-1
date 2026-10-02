@@ -73,7 +73,7 @@ int solve(int n, int m, double* A, double* b, double* x, double* workspace)
     if (!isfinite(matrix_norm))
         return 1;
 
-    // todo: заменить заглушку на что-то осмысленное потом
+    // todo: заменить заглушку на метод гаусса
     for (int i = 0; i < n; i++)
         x[i] = i % 2 == 0 ? 1. : 0.;
 
