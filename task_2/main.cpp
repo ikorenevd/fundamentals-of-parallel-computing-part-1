@@ -90,8 +90,8 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    // вывод матрицы и правой части(не нужен)
-    // system.print_matrix(r);
+    // вывод матрицы и правой части(второй вывод не нужен)
+    system.print_matrix(r);
     // system.print_rhs(r);
 
     // решаем
