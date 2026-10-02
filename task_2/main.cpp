@@ -1,5 +1,8 @@
 #include <stdio.h>
 #include <time.h>
+#ifdef __linux__
+#include <sched.h>
+#endif
 
 #include "./LinearSystem.h"
 
@@ -7,7 +10,7 @@ int main(int argc, char** argv)
 {
     int task = 11;
     int n = 0, m = 0, r = 0, s = 0;
-    double t1 = 0., t2 = 0., r1 = 0., r2 = 0.;
+    double t1 = 0., t2 = 0., r1 = -1., r2 = -1.;
     char* file_name = nullptr;
     bool solved = 0;
 
@@ -37,13 +40,41 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    if (m > n)
-        m = n;
+    int block_size = m > n ? n : m;
 
-    // todo: привязка к последнему ядро через <schudl.h>
+#ifdef __linux__
+    // привязка к последнему доступному ядру
+    cpu_set_t available_cpus;
+    CPU_ZERO(&available_cpus);
+    if (sched_getaffinity(0, sizeof(available_cpus), &available_cpus) == -1)
+    {
+        perror("sched_getaffinity");
+        return 1;
+    }
+
+    int last_cpu = CPU_SETSIZE - 1;
+    while (last_cpu >= 0 && !CPU_ISSET(last_cpu, &available_cpus))
+    {
+        last_cpu--;
+    }
+    if (last_cpu < 0)
+    {
+        fprintf(stderr, "error: no available CPUs\n");
+        return 1;
+    }
+
+    cpu_set_t cpu_mask;
+    CPU_ZERO(&cpu_mask);
+    CPU_SET(last_cpu, &cpu_mask);
+    if (sched_setaffinity(0, sizeof(cpu_mask), &cpu_mask) == -1)
+    {
+        perror("sched_setaffinity");
+        return 1;
+    }
+#endif
 
     // создание системы
-    LinearSystem system(n, m);
+    LinearSystem system(n, block_size);
 
     // выделение памяти
     if (!system.memory_alloc())
@@ -59,36 +90,34 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    // выводим матрицу коэффициентов и столбец неизвестных
-    system.print_matrix(r);
-    system.print_rhs(r);
+    // вывод матрицы и правой части(не нужен)
+    // system.print_matrix(r);
+    // system.print_rhs(r);
 
-    // todo: проверка решено или возникли вырожденные блоки
     // решаем
-    t1 = clock();
-    solved = system.solve();
-    t1 = (t1 - clock()) / CLOCKS_PER_SEC;
+    clock_t start = clock();
+    solved = system.solve() == 0;
+    t1 = (double)(clock() - start) / CLOCKS_PER_SEC;
 
-    system.print_solution(r);
-    
-    // считаем несвязки
+    // считаем невязки
     if (solved)
     {
-        // Решение изменяет A и b; восстанавливаем их, сохраняя найденный x.
+        system.print_solution(r);
+        // восстанавливаем A и b для невязки
         if (!system.init(s, file_name))
         {
-            fprintf(stderr, "error: restoring matrix and right-hand side\n");
+            fprintf(stderr, "error: restoring matrix and rhs\n");
             return 1;
         }
 
-        t2 = clock();
+        start = clock();
         system.compute_residuals(r1, r2);
-        t2 = (t2 - clock()) / CLOCKS_PER_SEC;
+        t2 = (double)(clock() - start) / CLOCKS_PER_SEC;
     }
 
     // конечный вывод
     printf ("%s : Task = %d Res1 = %e Res2 = %e T1 = %.2f T2 = %.2f S = %d N = %d M = %d\n", argv[0], task, r1, r2, t1, t2, s, n, m);
 
-    // память выделяется только в LinearSystem::init, освобождается в деструкторе 
+    // память освобождается в деструкторе
     return 0;
 }

@@ -1,4 +1,5 @@
 #include "./LinearSystem.h"
+#include "./matrix_io.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -45,8 +46,10 @@ namespace
     {
         int i = row / m;
         int j = col / m;
+
         int wr = min(m, n - i * m);
         int wc = min(m, n - j * m);
+
         return (i * n + j * wr) * m + (row % m) * wc + col % m;
     }
 
@@ -78,6 +81,10 @@ bool LinearSystem::memory_alloc()
         return 0;
     memset(x, 0, sizeof(double) * n);
 
+    norm_workspace = (double*)malloc(sizeof(double) * n);
+    if (norm_workspace == nullptr)
+        return 0;
+
     return 1;
 }
 
@@ -86,9 +93,11 @@ void LinearSystem::free_memory()
     free(A);
     free(b);
     free(x);
+    free(norm_workspace);
     A = nullptr;
     b = nullptr;
     x = nullptr;
+    norm_workspace = nullptr;
 }
 
 bool LinearSystem::init(int s, char* file_name)
@@ -110,9 +119,23 @@ bool LinearSystem::init(int s, char* file_name)
 
 bool LinearSystem::init_matrix_from_formula(int s)
 {
-    for (int i = 0; i < n; i++)
-        for (int j = 0; j < n; j++)
-            *(A + matrix_offset(n, m, i, j)) = f(n, s, i + 1, j + 1);
+    double* block = A;
+    for (int row = 0; row < n; )
+    {
+        int height = min(m, n - row);
+
+        for (int col = 0; col < n; )
+        {
+            int width = min(m, n - col);
+
+            for (int p = 0; p < height; p++)
+                for (int q = 0; q < width; q++)
+                    *block++ = f(n, s, row + p + 1, col + q + 1);
+
+            col += width;
+        }
+        row += height;
+    }
     return 1;
 }
 
@@ -129,6 +152,7 @@ bool LinearSystem::init_matrix_from_file(char* file_name)
         for (int j = 0; j < n; j++)
         {
             double* value = A + matrix_offset(n, m, i, j);
+
             if (fscanf(file, "%lf", value) != 1 || isnan(*value))
             {
                 fclose(file);
@@ -136,10 +160,11 @@ bool LinearSystem::init_matrix_from_file(char* file_name)
             }
         }
 
-    char extra;
-    bool complete = fscanf(file, " %c", &extra) == EOF && !ferror(file);
+    char c;
+    bool flag = fscanf(file, " %c", &c) == EOF && !ferror(file);
+
     fclose(file);
-    return complete;
+    return flag;
 }
 
 bool LinearSystem::init_rhs()
@@ -147,163 +172,113 @@ bool LinearSystem::init_rhs()
     if (b == nullptr)
         return 0;
 
-    for (int i = 0; i < n; i++)
+    const double* block = A;
+
+    for (int row = 0; row < n; )
     {
-        double sum = 0.;
+        int height = min(m, n - row);
 
-        for (int k = 0; k < n; k += 2)
-            sum += *(A + matrix_offset(n, m, i, k));
+        for (int p = 0; p < height; p++)
+            b[row + p] = 0.;
 
-        *(b + i) = sum;
+        for (int col = 0; col < n; )
+        {
+            int width = min(m, n - col);
 
-        if (isinf(*(b + i)))
-            return 0;
+            for (int p = 0; p < height; p++)
+            {
+                double sum = b[row + p];
+
+                // столбцы с чётным глобальным индексом
+    
+                for (int q = col % 2; q < width; q += 2)
+                    sum += block[q];
+
+                b[row + p] = sum;
+                block += width;
+            }
+
+            col += width;
+        }
+
+        for (int p = 0; p < height; p++)
+            if (!isfinite(b[row + p]))
+                return 0;
+
+        row += height;
     }
-
-
     return 1;
-}
-
-// todo: удалить после написания нормального решения
-bool LinearSystem::init_solution()
-{
-    if (x == nullptr)
-        return 0;
-
-    for (int i = 0; i < n; i ++)
-        x[i] = (i % 2 == 0) ? 1. : 0.;
-
-    return 0;
 }
 
 void LinearSystem::print_matrix(int r) const
 {
-    int s = min(r, n);
-
-    for (int i = 0; i < s; i++)
-    {
-        for (int j = 0; j < s; j++)
-            printf(" %10.3e", *(A + matrix_offset(n, m, i, j)));
-        printf("\n");
-    }
+    ::print_matrix(n, n, m, A, r);
 }
 
 void LinearSystem::print_rhs(int r) const
 {
-    int s = min(r, n);
-
-    for (int i = 0; i < s; i++)
-        printf(" %10.3e", *(b + i));
-    
-    printf("\n");
+    ::print_matrix(1, n, m, b, r);
 }
 
 void LinearSystem::print_solution(int r) const
 {
-    int s = min(r, n);
-
-    for (int i = 0; i < s; i++)
-        printf(" %10.3e", *(x + i));
-    
-    printf("\n");
-}
-
-
-// todo когда нормально потребуют
-bool LinearSystem::solve()
-{
-    if (isinf(matrix_norm) || isnan(matrix_norm))
-        return 0;
-
-    init_solution();
-
-    return 1;
+    ::print_matrix(1, n, m, x, r);
 }
 
 void LinearSystem::get_block(int i, int j, double* dest) const
 {
-    const int height = min(m, n - i * m);
-    const int width = min(m, n - j * m);
-    const size_t offset = (size_t)i * m * n + (size_t)j * m * height;
-    memcpy(dest, A + offset, (size_t)height * width * sizeof(double));
+    int height = min(m, n - i * m);
+    int width = min(m, n - j * m);
+    int offset = i * m * n + j * m * height;
+
+    memcpy(dest, A + offset, height * width * sizeof(double));
 }
 
+void LinearSystem::set_block(int i, int j, const double* src)
+{
+    int height = min(m, n - i * m);
+    int width = min(m, n - j * m);
+    int offset = i * m * n + j * m * height;
+
+    memcpy(A + offset, src, height * width * sizeof(double));
+}
+
+// todo: заместо HUGE_VAL переписать с поправкой на вычиселия машинного эпсиолна
 void LinearSystem::compute_residuals(double& r1, double& r2) const
 {
     r1 = -1; r2 = -1;
     if (n < 1 || m < 1 || A == nullptr || b == nullptr || x == nullptr)
         return;
 
-    const size_t block_size = (size_t)min(m, n);
-    double* work = (double*)malloc((block_size * block_size + 2 * block_size)
-                                  * sizeof(double));
-    if (work == nullptr)
-        return;
-    double* work_a = work;
-    double* work_x = work_a + block_size * block_size;
-    double* ax = work_x + block_size;
-
     double residual = 0.;
     double norm_b = 0.;
     double error = 0.;
 
-    for (int row = 0, block_row = 0; row < n; ++block_row)
+    // обход строк в блочном хранении
+    for (int row = 0; row < n; row++)
     {
-        const int height = min(m, n - row);
-        memset(ax, 0, height * sizeof(double));
+        int block_row = row / m;
+        int height = min(m, n - block_row * m);
+        int local_row = row % m;
+        double ax = 0.;
 
-        for (int col = 0, block_col = 0; col < n; ++block_col)
+        for (int col = 0, block_col = 0; col < n; block_col++)
         {
-            const int width = min(m, n - col);
-            get_block(block_row, block_col, work_a);
-            memcpy(work_x, x + col, width * sizeof(double));
-            const double* block = work_a;
-            for (int i = 0; i < height; ++i)
-            {
-                double sum = ax[i];
-                for (int j = 0; j < width; ++j)
-                    sum += block[j] * work_x[j];
-                ax[i] = sum;
-                block += width;
-            }
+            int width = min(m, n - col);
+            int offset = block_row * m * n + block_col * m * height + local_row * width;
+
+            for (int j = 0; j < width; j++)
+                ax += A[offset + j] * x[col + j];
+
             col += width;
         }
 
-        for (int i = 0; i < height; ++i)
-        {
-            const int index = row + i;
-            residual += fabs(ax[i] - b[index]);
-            norm_b += fabs(b[index]);
-            error += fabs(x[index] - (index % 2 == 0 ? 1. : 0.));
-        }
-        row += height;
+        residual += fabs(ax - b[row]);
+        norm_b += fabs(b[row]);
+        error += fabs(x[row] - (row % 2 == 0 ? 1. : 0.));
     }
 
-    free(work);
-    r1 = norm_b > 0. ? residual / norm_b
-        : (residual <= 0. ? 0. : HUGE_VAL);
+    r1 = norm_b > 0. ? residual / norm_b : (residual <= 0. ? 0. : HUGE_VAL);
+
     r2 = error / (n / 2 + n % 2);
-}
-
-void LinearSystem::calculate_matrix_norm()
-{
-    double sum = 0.;
-    if (n < 1)
-        return;
-
-
-    for (int i = 0; i < n; i++)
-        sum += fabs(*(A + matrix_offset(n, m, i, 0)));
-    
-
-    for (int j = 1; j < n; j++)
-    {
-        sum = 0.f;
-
-        for (int i = 0; i < n; i++)
-            sum += fabs(*(A + matrix_offset(n, m, i, j)));
-        
-        if (sum > matrix_norm)
-            matrix_norm = sum;
-    }
 }
