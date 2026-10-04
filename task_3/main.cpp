@@ -91,6 +91,7 @@ int main(int argc, char** argv)
     }
 
     // вывод матрицы и правой части(второй вывод не нужен)
+    printf("Matrix A:\n");
     system.print_matrix(r);
     // system.print_rhs(r);
 
@@ -102,6 +103,7 @@ int main(int argc, char** argv)
     // считаем невязки
     if (solved)
     {
+        printf("Solution x:\n");
         system.print_solution(r);
         // восстанавливаем A и b для невязки
         if (!system.init(s, file_name))

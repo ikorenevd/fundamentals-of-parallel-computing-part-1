@@ -22,9 +22,13 @@ class LinearSystem
         // 0 = успех
         int solve();
         void compute_residuals(double& r1, double& r2) const;
+
+        bool naive_full_matrix_to_triangular();
+        bool naive_traingular_solution();
     private:
         bool init_matrix_from_formula(int s);
         bool init_matrix_from_file(char* file_name);
+        bool init_perm();
         bool init_rhs();
 
         void get_block(int i, int j, double* dest) const;
@@ -32,8 +36,9 @@ class LinearSystem
     private:
         double* A = nullptr;
         double* b = nullptr;
-        double* x = nullptr;
+        double* solution = nullptr;
         double* norm_workspace = nullptr;
+        int* perm = nullptr;
 
         int n = 0;
         int m = 0;

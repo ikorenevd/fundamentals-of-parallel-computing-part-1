@@ -7,7 +7,4 @@
 // todo(?): обойсись без workspace
 double calculate_matrix_norm(int n, int m, const double* A, double* workspace);
 
-// заглушка: x = (1, 0, 1, ...)
-int solve(int n, int m, double* A, double* b, double* x, double* workspace);
-
 #endif

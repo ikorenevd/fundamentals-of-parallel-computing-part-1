@@ -76,14 +76,20 @@ bool LinearSystem::memory_alloc()
         return 0;
     memset(b, 0, sizeof(double) * n);
 
-    x = (double*)malloc(sizeof(double) * n);
-    if (x == nullptr)
+    solution = (double*)malloc(sizeof(double) * n);
+    if (solution == nullptr)
         return 0;
-    memset(x, 0, sizeof(double) * n);
+    memset(solution, 0, sizeof(double) * n);
 
     norm_workspace = (double*)malloc(sizeof(double) * n);
     if (norm_workspace == nullptr)
         return 0;
+    memset(norm_workspace, 0, sizeof(double) * n);
+
+    perm = (int*)malloc(sizeof(int) * n);
+    if (perm == nullptr)
+        return 0;
+    memset(perm, 0, sizeof(int) * n);
 
     return 1;
 }
@@ -92,12 +98,14 @@ void LinearSystem::free_memory()
 {
     free(A);
     free(b);
-    free(x);
+    free(solution);
     free(norm_workspace);
+    free(perm);
     A = nullptr;
     b = nullptr;
-    x = nullptr;
+    solution = nullptr;
     norm_workspace = nullptr;
+    perm = nullptr;
 }
 
 bool LinearSystem::init(int s, char* file_name)
@@ -113,6 +121,11 @@ bool LinearSystem::init(int s, char* file_name)
         return 0;
 
     flag = init_rhs();
+
+    if (!flag)
+        return 0;
+    
+    flag = init_perm();
 
     return flag;
 }
@@ -139,6 +152,7 @@ bool LinearSystem::init_matrix_from_formula(int s)
     return 1;
 }
 
+// todo: remove matrix_offset
 bool LinearSystem::init_matrix_from_file(char* file_name)
 {
     if (file_name == nullptr)
@@ -210,6 +224,13 @@ bool LinearSystem::init_rhs()
     return 1;
 }
 
+bool LinearSystem::init_perm()
+{
+    for (int j = 0; j < n; j++)
+        perm[j] = j;
+    return 1;
+}
+
 void LinearSystem::print_matrix(int r) const
 {
     ::print_matrix(n, n, m, A, r);
@@ -222,7 +243,7 @@ void LinearSystem::print_rhs(int r) const
 
 void LinearSystem::print_solution(int r) const
 {
-    ::print_matrix(1, n, m, x, r);
+    ::print_matrix(1, n, m, solution, r);
 }
 
 void LinearSystem::get_block(int i, int j, double* dest) const
@@ -247,7 +268,7 @@ void LinearSystem::set_block(int i, int j, const double* src)
 void LinearSystem::compute_residuals(double& r1, double& r2) const
 {
     r1 = -1; r2 = -1;
-    if (n < 1 || m < 1 || A == nullptr || b == nullptr || x == nullptr)
+    if (n < 1 || m < 1 || A == nullptr || b == nullptr || solution == nullptr)
         return;
 
     double residual = 0.;
@@ -268,14 +289,14 @@ void LinearSystem::compute_residuals(double& r1, double& r2) const
             int offset = block_row * m * n + block_col * m * height + local_row * width;
 
             for (int j = 0; j < width; j++)
-                ax += A[offset + j] * x[col + j];
+                ax += A[offset + j] * solution[col + j];
 
             col += width;
         }
 
         residual += fabs(ax - b[row]);
         norm_b += fabs(b[row]);
-        error += fabs(x[row] - (row % 2 == 0 ? 1. : 0.));
+        error += fabs(solution[row] - (row % 2 == 0 ? 1. : 0.));
     }
 
     r1 = norm_b > 0. ? residual / norm_b : (residual <= 0. ? 0. : HUGE_VAL);
