@@ -354,12 +354,12 @@ bool LinearSystem::blocked_matrix_to_triangular()
                 int height = std::min(m, n - i * m);
                 get_block(i, alpha, block1); // block1 = A_{i, \alpha}
 
-                for (int j = alpha + 1; j < k; j++)
+                for (int j = alpha + 1; j < k + (l != 0); j++)
                 {
                     int width = std::min(m, n - j * m);
                     get_block(alpha, j, block2); // block2 = A_{\alpha, j}
                     
-                    matrix_multiplication(block1, block2, block3, m, m, width);
+                    matrix_multiplication(block1, block2, block3, height, m, width);
                     
                     get_block(i, j, block4);
                     
@@ -369,7 +369,7 @@ bool LinearSystem::blocked_matrix_to_triangular()
                     set_block(i, j, block4);
                 }
 
-                matrix_multiplication(block1, b + alpha * m, block2, m, height, 1);
+                matrix_multiplication(block1, b + alpha * m, block2, height, m, 1);
 
                 for (int t = 0; t < height; t++)
                     b[i * m + t] -= block2[t];
@@ -380,21 +380,19 @@ bool LinearSystem::blocked_matrix_to_triangular()
             }
         }
 
-        // todo: остается последний блок размера l x l, его приводим обычным метдом Гаусса 
-        {
-            if (l != 0)
-            {
-                double abs_inverse_det = 0.;
+    }
 
-                get_block(k, k, block1);
-                
-                if (!invert_block(block1, block2, l, w_perm, abs_inverse_det))
-                    return 0;
-                
-                matrix_multiplication(block2, b + k * m, block1, l, l, 1);
-                std::copy(block1, block1 + l, b + k * m);
-            }
-        }
+    // Последний блок решаем один раз после исключения всех полных блоков.
+    if (l != 0)
+    {
+        double abs_inverse_det = 0.;
+        get_block(k, k, block1);
+
+        if (!invert_block(block1, block2, l, w_perm, abs_inverse_det))
+            return 0;
+
+        matrix_multiplication(block2, b + k * m, block1, l, l, 1);
+        std::copy(block1, block1 + l, b + k * m);
     }
 
     return 1;
