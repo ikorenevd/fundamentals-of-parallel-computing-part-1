@@ -10,7 +10,7 @@ ifeq ($(origin CXX),default)
 endif
 
 # Use flags supported by both GCC and Clang, including on Apple Silicon.
-CXXFLAGS ?= -std=c++11 -O3 -fstack-protector-all -g -Wall -Wextra -Wunused -Wcast-align -Werror -pedantic -pedantic-errors -Wfloat-equal -Wpointer-arith -Wformat-security -Wmissing-format-attribute -Wformat -Wwrite-strings -Wno-long-long -Woverloaded-virtual -Wnon-virtual-dtor -Wcast-qual
+CXXFLAGS ?= -std=c++17 -O3 -fstack-protector-all -g -Wall -Wextra -Wunused -Wcast-align -Werror -pedantic -pedantic-errors -Wfloat-equal -Wpointer-arith -Wformat-security -Wmissing-format-attribute -Wformat -Wwrite-strings -Wno-long-long -Woverloaded-virtual -Wnon-virtual-dtor -Wcast-qual
 
 # LeakSanitizer is unavailable with Apple's AddressSanitizer runtime.
 ifeq ($(UNAME_S),Darwin)
@@ -32,3 +32,5 @@ memcheck: main.cpp LinearSystem.cpp solver.cpp matrix_io.cpp LinearSystem.h solv
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -O1 -fsanitize=address -fno-omit-frame-pointer main.cpp LinearSystem.cpp solver.cpp matrix_io.cpp $(LDFLAGS) $(LDLIBS) -o build/memcheck
 	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 40 2 4 3
 	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 10 10 10 1
+	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 20 10 10 1
+	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 21 10 10 1

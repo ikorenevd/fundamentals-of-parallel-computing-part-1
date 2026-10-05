@@ -1,6 +1,7 @@
 #include "./LinearSystem.h"
 #include "./matrix_io.h"
 
+#include <algorithm>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -55,8 +56,12 @@ namespace
 
 }
 
-LinearSystem::LinearSystem(int _n, int _m) : n(_n), m(_m)
+LinearSystem::LinearSystem(int _n, int _m)
 {
+    n = _n;
+    m = _m;
+    k = n / m;
+    l = n % m;
 }
 
 LinearSystem::~LinearSystem()
@@ -81,15 +86,30 @@ bool LinearSystem::memory_alloc()
         return 0;
     memset(solution, 0, sizeof(double) * n);
 
-    norm_workspace = (double*)malloc(sizeof(double) * n);
-    if (norm_workspace == nullptr)
-        return 0;
-    memset(norm_workspace, 0, sizeof(double) * n);
-
-    perm = (int*)malloc(sizeof(int) * n);
+    perm = (int*)malloc(sizeof(int) * k);
     if (perm == nullptr)
         return 0;
-    memset(perm, 0, sizeof(int) * n);
+    memset(perm, 0, sizeof(int) * k);
+
+    w_perm = (int*)malloc(sizeof(int) * m);
+    if (w_perm == nullptr)
+        return 0;
+
+    block1 = (double*)malloc(sizeof(double) * m * m);
+    if (block1 == nullptr)
+        return 0;
+    
+    block2 = (double*)malloc(sizeof(double) * m * m);
+    if (block2 == nullptr)
+        return 0;
+
+    block3 = (double*)malloc(sizeof(double) * m * m);
+    if (block3 == nullptr)
+        return 0;
+
+    block4 = (double*)malloc(sizeof(double) * m * m);
+    if (block4 == nullptr)
+        return 0;
 
     return 1;
 }
@@ -99,13 +119,22 @@ void LinearSystem::free_memory()
     free(A);
     free(b);
     free(solution);
-    free(norm_workspace);
     free(perm);
+    free(w_perm);
+    free(block1);
+    free(block2);
+    free(block3);
+    free(block4);
+
     A = nullptr;
     b = nullptr;
     solution = nullptr;
-    norm_workspace = nullptr;
     perm = nullptr;
+    w_perm = nullptr;
+    block1 = nullptr;
+    block2 = nullptr;
+    block3 = nullptr;
+    block4 = nullptr;
 }
 
 bool LinearSystem::init(int s, char* file_name)
@@ -152,7 +181,6 @@ bool LinearSystem::init_matrix_from_formula(int s)
     return 1;
 }
 
-// todo: remove matrix_offset
 bool LinearSystem::init_matrix_from_file(char* file_name)
 {
     if (file_name == nullptr)
@@ -226,7 +254,9 @@ bool LinearSystem::init_rhs()
 
 bool LinearSystem::init_perm()
 {
-    for (int j = 0; j < n; j++)
+    if (m < 1 || n < m || perm == nullptr)
+        return 0;
+    for (int j = 0; j < k; j++)
         perm[j] = j;
     return 1;
 }
@@ -302,4 +332,59 @@ void LinearSystem::compute_residuals(double& r1, double& r2) const
     r1 = norm_b > 0. ? residual / norm_b : (residual <= 0. ? 0. : HUGE_VAL);
 
     r2 = error / (n / 2 + n % 2);
+}
+
+
+// todo: переписать, суммируя в блоках
+double LinearSystem::get_matrix_norm() const
+{
+    double norm = 0.;
+
+    for (int i = 0; i < n; i++)
+    {
+        double sum = 0.;
+        for (int j = 0; j < n; j++)
+            sum += fabs(A[matrix_offset(n, m, i, j)]);
+
+        if (sum > norm)
+            norm = sum;
+    }
+
+    return norm;
+}
+
+// Перестановка двух полных блочных строк.
+void LinearSystem::swap_blocked_rows(int i, int j)
+{
+    if (m < 1 || i < 0 || j < 0 || i >= k || j >= k
+        || i == j || A == nullptr || b == nullptr)
+        return;
+
+    std::swap_ranges(A + i * n * m, A + (i + 1) * n * m, A + j * n * m);
+    std::swap_ranges(b + i * m, b + (i + 1) * m, b + j * m);
+}
+
+void LinearSystem::swap_blocked_columns(int i, int j)
+{
+    if (m < 1 || i < 0 || j < 0 || i >= k || j >= k
+        || i == j || A == nullptr || perm == nullptr)
+        return;
+    
+    // меняем квадратные блоки
+    for (int row = 0; row < k; row++)
+    {
+        std::swap_ranges(A + row * n * m + i * m * m,
+                         A + row * n * m + (i + 1) * m * m, A + row * n * m + j * m * m);
+    }
+
+    int l = n % m;
+    if (l != 0)
+    {
+        double* tail = A + (k) * m * n;
+        std::swap_ranges(tail + i * m * l,
+                        tail + (i + 1) * m * l,
+                        tail + j * m * l);
+    }
+
+    std::swap(perm[i], perm[j]);
 }

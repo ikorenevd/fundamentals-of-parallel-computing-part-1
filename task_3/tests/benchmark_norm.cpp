@@ -69,8 +69,9 @@ int main()
         return 1;
 #endif
     typedef double (*Norm)(int, int, const double*, double*);
-    Norm variants[] = {baseline, block_columns, calculate_matrix_norm};
-    std::puts("n,m,baseline_ms,block_columns_ms,storage_order_ms");
+    Norm variants[] = {baseline, block_columns,
+        [](int n, int m, const double* a, double*) { return calculate_matrix_norm(n, m, a); }};
+    std::puts("n,m,baseline_ms,block_columns_ms,no_workspace_ms");
     for (int n : {512, 2048, 2051, 4096})
         for (int m : {1, 16, 90, 256, n})
         {

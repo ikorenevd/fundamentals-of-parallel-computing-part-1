@@ -42,7 +42,7 @@ int main()
                 }
                 std::vector<double> blocks = pack(a, n, n, m);
                 const std::vector<double> original = blocks;
-                double actual = calculate_matrix_norm(n, m, blocks.data(), scratch.data() + 1);
+                double actual = calculate_matrix_norm(n, m, blocks.data());
                 assert(std::isfinite(actual));
                 assert(std::fabs(actual - expected) <= 1e-14 * std::max(1., expected));
                 assert(std::fabs(scratch.front() + 17.) < 1e-15);
@@ -60,7 +60,7 @@ int main()
         for (int m : {1, 2, 3})
         {
             std::vector<double> a(4, invalid), b(2, 0.), x(2, -7.), scratch(2);
-            assert(!std::isfinite(calculate_matrix_norm(2, m, a.data(), scratch.data())));
+            assert(!std::isfinite(calculate_matrix_norm(2, m, a.data())));
             assert(solve(2, m, a.data(), b.data(), x.data(), scratch.data()) != 0);
             for (double value : x)
                 assert(std::fabs(value + 7.) < 1e-15);
