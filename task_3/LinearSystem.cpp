@@ -339,15 +339,28 @@ void LinearSystem::compute_residuals(double& r1, double& r2) const
 double LinearSystem::get_matrix_norm() const
 {
     double norm = 0.;
+    int block_count = k + (l != 0);
 
-    for (int i = 0; i < n; i++)
+    for (int i = 0; i < block_count; i++)
     {
-        double sum = 0.;
-        for (int j = 0; j < n; j++)
-            sum += fabs(A[matrix_offset(n, m, i, j)]);
+        int height = std::min(m, n - i * m);
 
-        if (sum > norm)
-            norm = sum;
+        for (int row = 0; row < height; row++)
+        {
+            double sum = 0.;
+
+            for (int j = 0; j < block_count; j++)
+            {
+                int width = std::min(m, n - j * m);
+                const double* block = A + i * m * n + j * m * height;
+
+                for (int col = 0; col < width; col++)
+                    sum += fabs(block[row * width + col]);
+            }
+
+            if (sum > norm)
+                norm = sum;
+        }
     }
 
     return norm;
