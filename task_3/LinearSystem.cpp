@@ -6,19 +6,10 @@
 #include <string.h>
 #include <stdio.h>
 #include <math.h>
+#include <limits.h>
 
 namespace
 {
-    inline int min(int a, int b)
-    {
-        return (a > b ? b : a);
-    }
-
-    // inline int max(int a, int b)
-    // {
-    //     return (a > b ? a : b);
-    // }
-
     inline double f(int n, int s, int i, int j)
     {
         int t;
@@ -48,8 +39,8 @@ namespace
         int i = row / m;
         int j = col / m;
 
-        int wr = min(m, n - i * m);
-        int wc = min(m, n - j * m);
+        int wr = std::min(m, n - i * m);
+        int wc = std::min(m, n - j * m);
 
         return (i * n + j * wr) * m + (row % m) * wc + col % m;
     }
@@ -58,6 +49,9 @@ namespace
 
 LinearSystem::LinearSystem(int _n, int _m)
 {
+    if (_n < 1 || _m < 1 || _m > _n)
+        return;
+
     n = _n;
     m = _m;
     k = n / m;
@@ -139,6 +133,13 @@ void LinearSystem::free_memory()
 
 bool LinearSystem::init(int s, char* file_name)
 {
+    if (n < 1 || m < 1 || m > n || n > INT_MAX / n || s < 0 || s > 4
+        || (s == 0 && file_name == nullptr)
+        || A == nullptr || b == nullptr || solution == nullptr || perm == nullptr
+        || w_perm == nullptr || block1 == nullptr || block2 == nullptr
+        || block3 == nullptr || block4 == nullptr)
+        return 0;
+
     bool flag = 0;
     
     if (s == 0)
@@ -147,6 +148,9 @@ bool LinearSystem::init(int s, char* file_name)
         flag = init_matrix_from_formula(s);
 
     if (!flag)
+        return 0;
+
+    if (!isfinite(get_matrix_norm()))
         return 0;
 
     flag = init_rhs();
@@ -164,11 +168,11 @@ bool LinearSystem::init_matrix_from_formula(int s)
     double* block = A;
     for (int row = 0; row < n; )
     {
-        int height = min(m, n - row);
+        int height = std::min(m, n - row);
 
         for (int col = 0; col < n; )
         {
-            int width = min(m, n - col);
+            int width = std::min(m, n - col);
 
             for (int p = 0; p < height; p++)
                 for (int q = 0; q < width; q++)
@@ -218,14 +222,14 @@ bool LinearSystem::init_rhs()
 
     for (int row = 0; row < n; )
     {
-        int height = min(m, n - row);
+        int height = std::min(m, n - row);
 
         for (int p = 0; p < height; p++)
             b[row + p] = 0.;
 
         for (int col = 0; col < n; )
         {
-            int width = min(m, n - col);
+            int width = std::min(m, n - col);
 
             for (int p = 0; p < height; p++)
             {
@@ -278,8 +282,8 @@ void LinearSystem::print_solution(int r) const
 
 void LinearSystem::get_block(int i, int j, double* dest) const
 {
-    int height = min(m, n - i * m);
-    int width = min(m, n - j * m);
+    int height = std::min(m, n - i * m);
+    int width = std::min(m, n - j * m);
     int offset = i * m * n + j * m * height;
 
     memcpy(dest, A + offset, height * width * sizeof(double));
@@ -287,8 +291,8 @@ void LinearSystem::get_block(int i, int j, double* dest) const
 
 void LinearSystem::set_block(int i, int j, const double* src)
 {
-    int height = min(m, n - i * m);
-    int width = min(m, n - j * m);
+    int height = std::min(m, n - i * m);
+    int width = std::min(m, n - j * m);
     int offset = i * m * n + j * m * height;
 
     memcpy(A + offset, src, height * width * sizeof(double));
@@ -298,8 +302,6 @@ void LinearSystem::set_block(int i, int j, const double* src)
 void LinearSystem::compute_residuals(double& r1, double& r2) const
 {
     r1 = -1; r2 = -1;
-    if (n < 1 || m < 1 || A == nullptr || b == nullptr || solution == nullptr)
-        return;
 
     double residual = 0.;
     double norm_b = 0.;
@@ -309,13 +311,13 @@ void LinearSystem::compute_residuals(double& r1, double& r2) const
     for (int row = 0; row < n; row++)
     {
         int block_row = row / m;
-        int height = min(m, n - block_row * m);
+        int height = std::min(m, n - block_row * m);
         int local_row = row % m;
         double ax = 0.;
 
         for (int col = 0, block_col = 0; col < n; block_col++)
         {
-            int width = min(m, n - col);
+            int width = std::min(m, n - col);
             int offset = block_row * m * n + block_col * m * height + local_row * width;
 
             for (int j = 0; j < width; j++)
@@ -369,8 +371,7 @@ double LinearSystem::get_matrix_norm() const
 // Перестановка двух полных блочных строк.
 void LinearSystem::swap_blocked_rows(int i, int j)
 {
-    if (m < 1 || i < 0 || j < 0 || i >= k || j >= k
-        || i == j || A == nullptr || b == nullptr)
+    if (i == j)
         return;
 
     std::swap_ranges(A + i * n * m, A + (i + 1) * n * m, A + j * n * m);
@@ -379,16 +380,14 @@ void LinearSystem::swap_blocked_rows(int i, int j)
 
 void LinearSystem::swap_blocked_columns(int i, int j)
 {
-    if (m < 1 || i < 0 || j < 0 || i >= k || j >= k
-        || i == j || A == nullptr || perm == nullptr)
+    if (i == j)
         return;
     
     // меняем квадратные блоки
     for (int row = 0; row < k; row++)
-    {
         std::swap_ranges(A + row * n * m + i * m * m,
-                         A + row * n * m + (i + 1) * m * m, A + row * n * m + j * m * m);
-    }
+                         A + row * n * m + (i + 1) * m * m,
+                         A + row * n * m + j * m * m);
 
     int l = n % m;
     if (l != 0)

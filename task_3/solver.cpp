@@ -30,8 +30,6 @@ double calculate_block_norm(const double* block, int m)
 // A = f x l, B = l x k, A * B = f x k, все матрицы хранятся по строчно
 void matrix_multiplication(const double* A, const double *B, double* result, int f, int l, int k)
 {
-    // double sum;
-
     memset(result, 0, sizeof(double) * f * k);
     for (int i = 0; i < f; i++)
         for (int j = 0; j < k; j++)
@@ -47,8 +45,6 @@ void matrix_multiplication(const double* A, const double *B, double* result, int
 bool invert_block(double* block, double* inverse, int m, int* block_perm, double& abs_inverse_det)
 {
     abs_inverse_det = 0.;
-    if (block == nullptr || inverse == nullptr || m < 1)
-        return 0;
 
     double determinant = 1.;
 
@@ -77,7 +73,7 @@ bool invert_block(double* block, double* inverse, int m, int* block_perm, double
                 }
 
         if (abs_pivot < MACHINE_EPS)
-                return 0;
+            return 0;
 
         // важен только знак определителя
         // if (pivot_i != alpha)
@@ -170,10 +166,6 @@ bool LinearSystem::finding_block_pivot(int alpha, int& pivot_i, int& pivot_j, do
 {
     pivot_i = -1;
     pivot_j = -1;
-    if (n < 1 || m < 1 || m > n || alpha < 0 || alpha >= k
-        || A == nullptr || block_inverse == nullptr || block2 == nullptr
-        || block3 == nullptr || w_perm == nullptr)
-        return 0;
 
     double pivot_norm = 0.;
     double abs_inverse_det = 0.;
@@ -211,10 +203,6 @@ bool LinearSystem::finding_block_pivot(int alpha, int& pivot_i, int& pivot_j, do
 // Построчное хранение: m == n или m == 1.
 bool LinearSystem::naive_full_matrix_to_triangular()
 {
-    if (n < 1 || m < 1 || (m != n && m != 1)
-        || A == nullptr || b == nullptr || perm == nullptr)
-        return 0;
-
     int alpha = 0;
 
     for (alpha = 0; alpha < n; alpha++)
@@ -233,7 +221,7 @@ bool LinearSystem::naive_full_matrix_to_triangular()
 
         // todo: нужно ли делать относительный эпсион(домножать на норму матрицы)
         // если главный элемент не подходит, то выходим
-        if (abs_pivot < MACHINE_EPS)
+        if (!isfinite(abs_pivot) || abs_pivot < MACHINE_EPS)
             return 0;
 
         // физически меняем строки alpha и pivot_i
@@ -263,9 +251,19 @@ bool LinearSystem::naive_full_matrix_to_triangular()
         for (int i = alpha + 1; i < n; i++)
         {
             double coeff = A[i * n + alpha] / A[alpha * n + alpha];
+            if (!isfinite(coeff))
+                return 0;
+
             for (int j = alpha + 1; j < n; j++)
+            {
                 A[i * n + j] -= coeff * A[alpha * n + j];
+                if (!isfinite(A[i * n + j]))
+                    return 0;
+            }
             b[i] -= coeff * b[alpha];
+            if (!isfinite(b[i]))
+                return 0;
+
             A[i * n + alpha] = 0.;
         }
     }
@@ -273,22 +271,25 @@ bool LinearSystem::naive_full_matrix_to_triangular()
     return 1;
 }
 
-// todo: поработать с делением нуля
+// todo: какая-то из проверок лишняя
 bool LinearSystem::naive_traingular_solution()
 {
-    if (n < 1 || m < 1 || (m != n && m != 1)
-        || A == nullptr || b == nullptr || solution == nullptr || perm == nullptr)
-        return 0;
-
     for (int i = n - 1; i >= 0; i--)
     {
         double diagonal = A[i * n + i];
+        if (!isfinite(diagonal) || fabs(diagonal) < MACHINE_EPS)
+            return 0;
 
         double rhs = b[i];
         for (int j = i + 1; j < n; j++)
             rhs -= A[i * n + j] * solution[perm[j]];
 
+        if (!isfinite(rhs))
+            return 0;
+
         double value = rhs / diagonal;
+        if (!isfinite(value))
+            return 0;
 
         solution[perm[i]] = value;
     }
@@ -298,9 +299,6 @@ bool LinearSystem::naive_traingular_solution()
 
 bool LinearSystem::blocked_matrix_to_triangular()
 {
-    if (n < 1 || m < 1 || A == nullptr || b == nullptr || solution == nullptr || perm == nullptr)
-        return 0;
-
     // используем block1 для обратного блока
     for (int alpha = 0; alpha < k; alpha++)
     {
@@ -341,6 +339,9 @@ bool LinearSystem::blocked_matrix_to_triangular()
                 for (int col = 0; col < m; col++)
                     sum += block1[i * m + col] * b[alpha * m + col];
 
+                if (!isfinite(sum))
+                    return 0;
+
                 block3[i] = sum;
             }
 
@@ -364,7 +365,11 @@ bool LinearSystem::blocked_matrix_to_triangular()
                     get_block(i, j, block4);
                     
                     for (int t = 0; t < width * height; t++)
+                    {
                         block4[t] -= block3[t];
+                        if (!isfinite(block4[t]))
+                            return 0;
+                    }
                     
                     set_block(i, j, block4);
                 }
@@ -372,7 +377,11 @@ bool LinearSystem::blocked_matrix_to_triangular()
                 matrix_multiplication(block1, b + alpha * m, block2, height, m, 1);
 
                 for (int t = 0; t < height; t++)
+                {
                     b[i * m + t] -= block2[t];
+                    if (!isfinite(b[i * m + t]))
+                        return 0;
+                }
                 
                 
                 memset(block1, 0, sizeof(double) * height * m);
@@ -400,9 +409,6 @@ bool LinearSystem::blocked_matrix_to_triangular()
 
 bool LinearSystem::triangular_blocked_to_solution()
 {
-    if (n < 1 || m < 1 || A == nullptr || b == nullptr || solution == nullptr || perm == nullptr)
-        return 0;
-
     if (l != 0)
         std::copy(b + m * k, b + m * k + l, solution + m * k);
 
@@ -423,7 +429,12 @@ bool LinearSystem::triangular_blocked_to_solution()
                 for (int col = 0; col < width; col++)
                     sum += block[row * width + col] * solution[offset + col];
 
+                if (!isfinite(sum))
+                    return 0;
+
                 solution[perm[i] * m + row] -= sum;
+                if (!isfinite(solution[perm[i] * m + row]))
+                    return 0;
             }
         }
     }
@@ -434,14 +445,6 @@ bool LinearSystem::triangular_blocked_to_solution()
 int LinearSystem::solve()
 {
     bool flag = 0;
-
-    if (n < 1 || m < 1 || A == nullptr || b == nullptr || solution == nullptr || perm == nullptr)
-        return -1;
-
-    double matrix_norm = get_matrix_norm();
-
-    if (!isfinite(matrix_norm))
-        return -1;
 
     flag = blocked_matrix_to_triangular();
     if (!flag)

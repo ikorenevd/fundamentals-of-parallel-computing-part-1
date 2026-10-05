@@ -100,9 +100,6 @@ int main(int argc, char** argv)
     solved = system.solve() == 0;
     t1 = (double)(clock() - start) / CLOCKS_PER_SEC;
 
-    printf("Matrix A after:\n");
-    system.print_matrix(r);
-
     // считаем невязки
     if (solved)
     {

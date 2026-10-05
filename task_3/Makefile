@@ -31,6 +31,12 @@ memcheck: main.cpp LinearSystem.cpp solver.cpp matrix_io.cpp LinearSystem.h solv
 	mkdir -p build
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -O1 -fsanitize=address -fno-omit-frame-pointer main.cpp LinearSystem.cpp solver.cpp matrix_io.cpp $(LDFLAGS) $(LDLIBS) -o build/memcheck
 	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 40 2 4 3
-	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 10 10 10 1
+	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 1340 130 10 1
 	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 20 10 10 1
 	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 21 10 10 1
+	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 1000 7 10 1
+	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 201 40 10 1
+	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 2000 20 10 1
+	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 2000 1000 10 1
+	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 2000 2000 10 1
+
