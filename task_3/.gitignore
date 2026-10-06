@@ -1,0 +1,5 @@
+# История запусков, графики и Python-кэш создаются локально.
+results*.csv
+timings*.png
+timings*.svg
+__pycache__/

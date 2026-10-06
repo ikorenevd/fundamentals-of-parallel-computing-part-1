@@ -19,9 +19,6 @@ double calculate_block_norm(const double* block, int m)
         for (int i = 0; i < m; i++)
             sum += fabs(block[i * m + j]);
 
-        if (!isfinite(sum))
-            return HUGE_VAL;
-
         norm = std::max(norm, sum);
     }
     return norm;
@@ -162,6 +159,7 @@ bool invert_block(double* block, double* inverse, int m, int* block_perm, double
     return 1;
 }
 
+// block_inverse не должен быть равен block2 и block3
 bool LinearSystem::finding_block_pivot(int alpha, int& pivot_i, int& pivot_j, double* block_inverse)
 {
     pivot_i = -1;
@@ -179,7 +177,7 @@ bool LinearSystem::finding_block_pivot(int alpha, int& pivot_i, int& pivot_j, do
             if (!invert_block(block2, block3, m, w_perm, abs_inverse_det))
                 continue;
 
-            const double inverse_norm = calculate_block_norm(block3, m);
+            double inverse_norm = calculate_block_norm(block3, m);
             if (!isfinite(inverse_norm))
                 continue;
 
@@ -231,6 +229,7 @@ bool LinearSystem::naive_full_matrix_to_triangular()
             A[pivot_i * n + j] = A[alpha * n + j];
             A[alpha * n + j] = temp;
         }
+
         temp = b[pivot_i];
         b[pivot_i] = b[alpha];
         b[alpha] = temp;
@@ -242,6 +241,7 @@ bool LinearSystem::naive_full_matrix_to_triangular()
             A[i * n + alpha] = A[i * n + pivot_j];
             A[i * n + pivot_j] = temp;
         }
+
         int t = perm[alpha];
         perm[alpha] = perm[pivot_j];
         perm[pivot_j] = t;
@@ -251,19 +251,12 @@ bool LinearSystem::naive_full_matrix_to_triangular()
         for (int i = alpha + 1; i < n; i++)
         {
             double coeff = A[i * n + alpha] / A[alpha * n + alpha];
-            if (!isfinite(coeff))
                 return 0;
 
             for (int j = alpha + 1; j < n; j++)
-            {
                 A[i * n + j] -= coeff * A[alpha * n + j];
-                if (!isfinite(A[i * n + j]))
-                    return 0;
-            }
-            b[i] -= coeff * b[alpha];
-            if (!isfinite(b[i]))
-                return 0;
 
+            b[i] -= coeff * b[alpha];
             A[i * n + alpha] = 0.;
         }
     }
@@ -309,43 +302,26 @@ bool LinearSystem::blocked_matrix_to_triangular()
         swap_blocked_rows(alpha, pivot_i);
         swap_blocked_columns(alpha, pivot_j);
 
-        // todo: сделай единой формулой
         {
-            // block2 = identiy matrix
+            // на место главного блока ставим единичный
             for (int i = 0; i < m * m; i++)
-                block2[i] = (i % (m + 1) == 0) ? 1. : 0.;
+                block2[i] = (double)(i % (m + 1) == 0);
             set_block(alpha, alpha, block2);
-            
-            // изменяем квадратные блоки
-            for (int j = alpha + 1; j < k; j++)
+
+            // обновляем все блоки справа от него
+            for (int j = alpha + 1; j < k + (l != 0); j++)
             {
+                int width = std::min(m, n - j * m);
+                
                 get_block(alpha, j, block2);
-                matrix_multiplication(block1, block2, block3, m, m, m);
+                matrix_multiplication(block1, block2, block3, m, m, width);
                 set_block(alpha, j, block3);
             }
-            
-            // неквадратный
-            if (l != 0)
-            {
-                get_block(alpha, k, block2);
-                matrix_multiplication(block1, block2, block3, m, m, l);
-                set_block(alpha, k, block3);
-            }
-            
-            // блок свободных членов
+
+            // столбец свободных коэффициентов
+            matrix_multiplication(block1, b + m * alpha, block2, m, m, 1);
             for (int i = 0; i < m; i++)
-            {
-                double sum = 0.;
-                for (int col = 0; col < m; col++)
-                    sum += block1[i * m + col] * b[alpha * m + col];
-
-                if (!isfinite(sum))
-                    return 0;
-
-                block3[i] = sum;
-            }
-
-            std::copy(block3, block3 + m, b + alpha * m);
+                b[m * alpha + i] = block2[i];
         }
 
         {
@@ -359,30 +335,17 @@ bool LinearSystem::blocked_matrix_to_triangular()
                 {
                     int width = std::min(m, n - j * m);
                     get_block(alpha, j, block2); // block2 = A_{\alpha, j}
-                    
                     matrix_multiplication(block1, block2, block3, height, m, width);
-                    
                     get_block(i, j, block4);
-                    
                     for (int t = 0; t < width * height; t++)
-                    {
                         block4[t] -= block3[t];
-                        if (!isfinite(block4[t]))
-                            return 0;
-                    }
-                    
                     set_block(i, j, block4);
                 }
 
                 matrix_multiplication(block1, b + alpha * m, block2, height, m, 1);
 
                 for (int t = 0; t < height; t++)
-                {
                     b[i * m + t] -= block2[t];
-                    if (!isfinite(b[i * m + t]))
-                        return 0;
-                }
-                
                 
                 memset(block1, 0, sizeof(double) * height * m);
                 set_block(i, alpha, block1);
@@ -429,12 +392,7 @@ bool LinearSystem::triangular_blocked_to_solution()
                 for (int col = 0; col < width; col++)
                     sum += block[row * width + col] * solution[offset + col];
 
-                if (!isfinite(sum))
-                    return 0;
-
                 solution[perm[i] * m + row] -= sum;
-                if (!isfinite(solution[perm[i] * m + row]))
-                    return 0;
             }
         }
     }
