@@ -369,12 +369,14 @@ double LinearSystem::get_matrix_norm() const
 }
 
 // Перестановка двух полных блочных строк.
-void LinearSystem::swap_blocked_rows(int i, int j)
+void LinearSystem::swap_blocked_rows(int i, int j, int first_column)
 {
     if (i == j)
         return;
 
-    std::swap_ranges(A + i * n * m, A + (i + 1) * n * m, A + j * n * m);
+    std::swap_ranges(A + i * n * m + first_column * m * m,
+                     A + (i + 1) * n * m,
+                     A + j * n * m + first_column * m * m);
     std::swap_ranges(b + i * m, b + (i + 1) * m, b + j * m);
 }
 

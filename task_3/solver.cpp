@@ -7,21 +7,35 @@
 
 #define MACHINE_EPS 1e-16
 
-double calculate_block_norm(const double* block, int m)
+double calculate_block_norm(const double* block, int m, double* vector_norms)
 {
-    if (block == nullptr || m < 1)
+    if (block == nullptr || m < 1 || vector_norms == nullptr)
         return HUGE_VAL;
 
-    double norm = 0.;
-    for (int j = 0; j < m; j++)
-    {
-        double sum = 0.;
-        for (int i = 0; i < m; i++)
-            sum += fabs(block[i * m + j]);
+    // double norm = 0.;
+    // for (int j = 0; j < m; j++)
+    // {
+    //     double sum = 0.;
+    //     for (int i = 0; i < m; i++)
+    //         sum += fabs(block[i * m + j]);
+    //     norm = std::max(norm, sum);
+    // }
+    // return norm;
+    double max = 0.;
+    memset(vector_norms, 0, sizeof(double) * m);
+    for (int i = 0; i < m * m; i++)
+        vector_norms[i % m] += std::fabs(block[i]);
 
-        norm = std::max(norm, sum);
+    for (int i = 0; i < m; i++)
+    {
+        if (!isfinite(vector_norms[i]))
+            return HUGE_VAL;
+
+        if (vector_norms[i] > max)
+            max = vector_norms[i];
     }
-    return norm;
+
+    return max;
 }
 
 // A = f x l, B = l x k, A * B = f x k, все матрицы хранятся по строчно
@@ -42,13 +56,8 @@ void matrix_multiplication(const double* A, const double *B, double* result, int
 // inverse и block должны быть выделены m * m
 // block_perm m
 // при поиске обратной block изменяется, его нужно выделять с помощью get_block
-// при невозможности посчитать обратную получаем abs_inverse_det = 0
-bool invert_block(double* block, double* inverse, int m, int* block_perm, double& abs_inverse_det)
+bool invert_block(double* block, double* inverse, int m, int* block_perm)
 {
-    abs_inverse_det = 0.;
-
-    double determinant = 1.;
-
     // делаем inverse единичной
     for (int i = 0; i < m * m; i++)
         inverse[i] = (i % (m + 1) == 0) ? 1. : 0.;
@@ -75,12 +84,6 @@ bool invert_block(double* block, double* inverse, int m, int* block_perm, double
 
         if (abs_pivot < MACHINE_EPS)
             return 0;
-
-        // важен только знак определителя
-        // if (pivot_i != alpha)
-        //     determinant = -determinant;
-        // if (pivot_j != alpha)
-        //     determinant = -determinant;
 
         // меняем строки местами
         if (pivot_i != alpha)
@@ -138,7 +141,6 @@ bool invert_block(double* block, double* inverse, int m, int* block_perm, double
         }
 
         double r = 1. / block[i * m + i];
-        determinant *= r;
         for (int j = 0; j < m; j++)
             inverse[i * m + j] *= r;
     }
@@ -163,7 +165,6 @@ bool invert_block(double* block, double* inverse, int m, int* block_perm, double
         block_perm[k] = k;
     }
 
-    abs_inverse_det = fabs(determinant);
     return 1;
 }
 
@@ -266,13 +267,12 @@ bool naive_gauss_solve_block(double* block, int m, double* b, int* block_perm)
     return 1;
 }
 
-bool LinearSystem::finding_block_pivot(int alpha, int& pivot_i, int& pivot_j, double* ws_block1, double* ws_block2, double* block_inverse)
+bool LinearSystem::finding_block_pivot(int alpha, int& pivot_i, int& pivot_j, double* ws_block1, double* ws_block2, double* ws_vector_norms, double* block_inverse)
 {
     pivot_i = -1;
     pivot_j = -1;
 
     double pivot_norm = 0.;
-    double abs_inverse_det = 0.;
 
     for (int i = alpha; i < k; i++)
     {
@@ -280,10 +280,10 @@ bool LinearSystem::finding_block_pivot(int alpha, int& pivot_i, int& pivot_j, do
         {
             // ws_block1 хранит кандидата, ws_block2 — его обратную матрицу.
             get_block(i, j, ws_block1);
-            if (!invert_block(ws_block1, ws_block2, m, w_perm, abs_inverse_det))
+            if (!invert_block(ws_block1, ws_block2, m, w_perm))
                 continue;
 
-            double inverse_norm = calculate_block_norm(ws_block2, m);
+            double inverse_norm = calculate_block_norm(ws_block2, m, ws_vector_norms);
             if (!isfinite(inverse_norm))
                 continue;
 
@@ -397,19 +397,19 @@ bool LinearSystem::naive_traingular_solution()
 
 bool LinearSystem::blocked_matrix_to_triangular()
 {
-    // используем block1 для обратного блока, block2 и block3 - для работы
+    // используем block1 для обратного блока, block2 и block3 - для работы, block4 - тоже(в начале для вычисления норма, потом для свободных членов)
     for (int alpha = 0; alpha < k; alpha++)
     {
         int pivot_i, pivot_j;
-        if (!finding_block_pivot(alpha, pivot_i, pivot_j, block2, block3, block1))
+        if (!finding_block_pivot(alpha, pivot_i, pivot_j, block2, block3, block4, block1))
             return 0;
         
-        swap_blocked_rows(alpha, pivot_i);
+        swap_blocked_rows(alpha, pivot_i, alpha);
         swap_blocked_columns(alpha, pivot_j);
 
         {
             // на место главного блока ставим единичный
-            memset(block2, 0, m * m);
+            memset(block2, 0, sizeof(double) * m * m);
             for (int i = 0; i < m; i++)
                 block2[i * m + i] = 1.;
             set_block(alpha, alpha, block2);
