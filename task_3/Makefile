@@ -29,7 +29,7 @@ clean:
 
 memcheck: main.cpp LinearSystem.cpp solver.cpp matrix_io.cpp LinearSystem.h solver.h matrix_io.h Makefile
 	mkdir -p build
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -O1 -fsanitize=address -fno-omit-frame-pointer main.cpp LinearSystem.cpp solver.cpp matrix_io.cpp $(LDFLAGS) $(LDLIBS) -o build/memcheck
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -O3 -fsanitize=address -fno-omit-frame-pointer main.cpp LinearSystem.cpp solver.cpp matrix_io.cpp $(LDFLAGS) $(LDLIBS) -o build/memcheck
 	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 40 2 4 3
 	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 1340 130 10 1
 	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 20 10 10 1
@@ -38,5 +38,8 @@ memcheck: main.cpp LinearSystem.cpp solver.cpp matrix_io.cpp LinearSystem.h solv
 	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 201 40 10 1
 	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 2000 20 10 1
 	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 2000 1000 10 1
-	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 2000 2000 10 1
+	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 1500 142 10 3
+	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 1660 300 10 2
+	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 100 23 10 4
+	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 200 2 10 4
 

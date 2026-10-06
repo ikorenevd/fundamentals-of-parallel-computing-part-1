@@ -2,11 +2,12 @@
 #include "./matrix_io.h"
 
 #include <algorithm>
-#include <stdlib.h>
-#include <string.h>
-#include <stdio.h>
-#include <math.h>
-#include <limits.h>
+#include <cstdlib>
+#include <cstring>
+#include <cstdio>
+#include <cmath>
+#include <climits>
+#include <utility>
 
 namespace
 {
@@ -65,43 +66,43 @@ LinearSystem::~LinearSystem()
 
 bool LinearSystem::memory_alloc()
 {
-    A = (double*)malloc(n * n * sizeof(double));
+    A = (double*)std::malloc(n * n * sizeof(double));
     if (A == nullptr)
         return 0;
-    memset(A, 0, sizeof(double) * n * n);
+    std::memset(A, 0, sizeof(double) * n * n);
 
-    b = (double*)malloc(n * sizeof(double));
+    b = (double*)std::malloc(n * sizeof(double));
     if (b == nullptr)
         return 0;
-    memset(b, 0, sizeof(double) * n);
+    std::memset(b, 0, sizeof(double) * n);
 
-    solution = (double*)malloc(sizeof(double) * n);
+    solution = (double*)std::malloc(sizeof(double) * n);
     if (solution == nullptr)
         return 0;
-    memset(solution, 0, sizeof(double) * n);
+    std::memset(solution, 0, sizeof(double) * n);
 
-    perm = (int*)malloc(sizeof(int) * k);
+    perm = (int*)std::malloc(sizeof(int) * k);
     if (perm == nullptr)
         return 0;
-    memset(perm, 0, sizeof(int) * k);
+    std::memset(perm, 0, sizeof(int) * k);
 
-    w_perm = (int*)malloc(sizeof(int) * m);
+    w_perm = (int*)std::malloc(sizeof(int) * m);
     if (w_perm == nullptr)
         return 0;
 
-    block1 = (double*)malloc(sizeof(double) * m * m);
+    block1 = (double*)std::malloc(sizeof(double) * m * m);
     if (block1 == nullptr)
         return 0;
     
-    block2 = (double*)malloc(sizeof(double) * m * m);
+    block2 = (double*)std::malloc(sizeof(double) * m * m);
     if (block2 == nullptr)
         return 0;
 
-    block3 = (double*)malloc(sizeof(double) * m * m);
+    block3 = (double*)std::malloc(sizeof(double) * m * m);
     if (block3 == nullptr)
         return 0;
 
-    block4 = (double*)malloc(sizeof(double) * m * m);
+    block4 = (double*)std::malloc(sizeof(double) * m * m);
     if (block4 == nullptr)
         return 0;
 
@@ -110,15 +111,15 @@ bool LinearSystem::memory_alloc()
 
 void LinearSystem::free_memory()
 {
-    free(A);
-    free(b);
-    free(solution);
-    free(perm);
-    free(w_perm);
-    free(block1);
-    free(block2);
-    free(block3);
-    free(block4);
+    std::free(A);
+    std::free(b);
+    std::free(solution);
+    std::free(perm);
+    std::free(w_perm);
+    std::free(block1);
+    std::free(block2);
+    std::free(block3);
+    std::free(block4);
 
     A = nullptr;
     b = nullptr;
@@ -150,7 +151,7 @@ bool LinearSystem::init(int s, char* file_name)
     if (!flag)
         return 0;
 
-    if (!isfinite(get_matrix_norm()))
+    if (!std::isfinite(get_matrix_norm()))
         return 0;
 
     flag = init_rhs();
@@ -190,7 +191,7 @@ bool LinearSystem::init_matrix_from_file(char* file_name)
     if (file_name == nullptr)
         return 0;
 
-    FILE* file = fopen(file_name, "r");
+    std::FILE* file = std::fopen(file_name, "r");
     if (file == nullptr)
         return 0;
 
@@ -199,17 +200,17 @@ bool LinearSystem::init_matrix_from_file(char* file_name)
         {
             double* value = A + matrix_offset(n, m, i, j);
 
-            if (fscanf(file, "%lf", value) != 1 || isnan(*value))
+            if (std::fscanf(file, "%lf", value) != 1 || std::isnan(*value))
             {
-                fclose(file);
+                std::fclose(file);
                 return 0;
             }
         }
 
     char c;
-    bool flag = fscanf(file, " %c", &c) == EOF && !ferror(file);
+    bool flag = std::fscanf(file, " %c", &c) == EOF && !std::ferror(file);
 
-    fclose(file);
+    std::fclose(file);
     return flag;
 }
 
@@ -248,7 +249,7 @@ bool LinearSystem::init_rhs()
         }
 
         for (int p = 0; p < height; p++)
-            if (!isfinite(b[row + p]))
+            if (!std::isfinite(b[row + p]))
                 return 0;
 
         row += height;
@@ -286,7 +287,7 @@ void LinearSystem::get_block(int i, int j, double* dest) const
     int width = std::min(m, n - j * m);
     int offset = i * m * n + j * m * height;
 
-    memcpy(dest, A + offset, height * width * sizeof(double));
+    std::memcpy(dest, A + offset, height * width * sizeof(double));
 }
 
 void LinearSystem::set_block(int i, int j, const double* src)
@@ -295,7 +296,7 @@ void LinearSystem::set_block(int i, int j, const double* src)
     int width = std::min(m, n - j * m);
     int offset = i * m * n + j * m * height;
 
-    memcpy(A + offset, src, height * width * sizeof(double));
+    std::memcpy(A + offset, src, height * width * sizeof(double));
 }
 
 // todo: заместо HUGE_VAL переписать с поправкой на вычиселия машинного эпсиолна
@@ -326,13 +327,12 @@ void LinearSystem::compute_residuals(double& r1, double& r2) const
             col += width;
         }
 
-        residual += fabs(ax - b[row]);
-        norm_b += fabs(b[row]);
-        error += fabs(solution[row] - (row % 2 == 0 ? 1. : 0.));
+        residual += std::fabs(ax - b[row]);
+        norm_b   += std::fabs(b[row]);
+        error    += std::fabs(solution[row] - (row % 2 == 0 ? 1. : 0.));
     }
 
     r1 = norm_b > 0. ? residual / norm_b : (residual <= 0. ? 0. : HUGE_VAL);
-
     r2 = error / (n / 2 + n % 2);
 }
 
@@ -357,7 +357,7 @@ double LinearSystem::get_matrix_norm() const
                 const double* block = A + i * m * n + j * m * height;
 
                 for (int col = 0; col < width; col++)
-                    sum += fabs(block[row * width + col]);
+                    sum += std::fabs(block[row * width + col]);
             }
 
             if (sum > norm)
@@ -396,8 +396,8 @@ void LinearSystem::swap_blocked_columns(int i, int j)
     {
         double* tail = A + (k) * m * n;
         std::swap_ranges(tail + i * m * l,
-                        tail + (i + 1) * m * l,
-                        tail + j * m * l);
+                         tail + (i + 1) * m * l,
+                         tail + j * m * l);
     }
 
     std::swap(perm[i], perm[j]);

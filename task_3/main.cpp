@@ -1,5 +1,5 @@
-#include <stdio.h>
-#include <time.h>
+#include <cstdio>
+#include <ctime>
 #ifdef __linux__
 #include <sched.h>
 #endif
@@ -15,12 +15,12 @@ int main(int argc, char** argv)
     bool solved = 0;
 
     if (!((argc == 5 || argc == 6)
-        && (sscanf(argv[1], "%d", &n) == 1)
-        && (sscanf(argv[2], "%d", &m) == 1)
-        && (sscanf(argv[3], "%d", &r) == 1)
-        && (sscanf(argv[4], "%d", &s) == 1)))
+        && (std::sscanf(argv[1], "%d", &n) == 1)
+        && (std::sscanf(argv[2], "%d", &m) == 1)
+        && (std::sscanf(argv[3], "%d", &r) == 1)
+        && (std::sscanf(argv[4], "%d", &s) == 1)))
     {
-        printf("Usage: %s n m r s\n", argv[0]);
+        std::printf("Usage: %s n m r s\n", argv[0]);
         return 1;
     }
 
@@ -36,7 +36,7 @@ int main(int argc, char** argv)
         || (argc == 6 && s != 0)
     )
     {
-        fprintf(stderr, "Wrong input\n");
+        std::fprintf(stderr, "Wrong input\n");
         return 1;
     }
 
@@ -48,7 +48,7 @@ int main(int argc, char** argv)
     CPU_ZERO(&available_cpus);
     if (sched_getaffinity(0, sizeof(available_cpus), &available_cpus) == -1)
     {
-        perror("sched_getaffinity");
+        std::perror("sched_getaffinity");
         return 1;
     }
 
@@ -59,7 +59,7 @@ int main(int argc, char** argv)
     }
     if (last_cpu < 0)
     {
-        fprintf(stderr, "error: no available CPUs\n");
+        std::fprintf(stderr, "error: no available CPUs\n");
         return 1;
     }
 
@@ -68,7 +68,7 @@ int main(int argc, char** argv)
     CPU_SET(last_cpu, &cpu_mask);
     if (sched_setaffinity(0, sizeof(cpu_mask), &cpu_mask) == -1)
     {
-        perror("sched_setaffinity");
+        std::perror("sched_setaffinity");
         return 1;
     }
 #endif
@@ -79,46 +79,46 @@ int main(int argc, char** argv)
     // выделение памяти
     if (!system.memory_alloc())
     {
-        fprintf(stderr, "error: allocating memory\n");
+        std::fprintf(stderr, "error: allocating memory\n");
         return 1;
     }
 
     // инициализация
     if (!system.init(s, file_name))
     {
-        fprintf(stderr, "error: when inizialization\n");
+        std::fprintf(stderr, "error: when inizialization\n");
         return 1;
     }
 
     // вывод матрицы и правой части(второй вывод не нужен)
-    printf("Matrix A:\n");
+    std::printf("Matrix A:\n");
     system.print_matrix(r);
     // system.print_rhs(r);
 
     // решаем
-    clock_t start = clock();
+    std::clock_t start = std::clock();
     solved = system.solve() == 0;
-    t1 = (double)(clock() - start) / CLOCKS_PER_SEC;
+    t1 = (double)(std::clock() - start) / CLOCKS_PER_SEC;
 
     // считаем невязки
     if (solved)
     {
-        printf("Solution x:\n");
+        std::printf("Solution x:\n");
         system.print_solution(r);
         // восстанавливаем A и b для невязки
         if (!system.init(s, file_name))
         {
-            fprintf(stderr, "error: restoring matrix and rhs\n");
+            std::fprintf(stderr, "error: restoring matrix and rhs\n");
             return 1;
         }
 
-        start = clock();
+        start = std::clock();
         system.compute_residuals(r1, r2);
-        t2 = (double)(clock() - start) / CLOCKS_PER_SEC;
+        t2 = (double)(std::clock() - start) / CLOCKS_PER_SEC;
     }
 
     // конечный вывод
-    printf ("%s : Task = %d Res1 = %e Res2 = %e T1 = %.2f T2 = %.2f S = %d N = %d M = %d\n", argv[0], task, r1, r2, t1, t2, s, n, m);
+    std::printf ("%s : Task = %d Res1 = %e Res2 = %e T1 = %.2f T2 = %.2f S = %d N = %d M = %d\n", argv[0], task, r1, r2, t1, t2, s, n, m);
 
     // память освобождается в деструкторе
     return 0;

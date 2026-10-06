@@ -1,6 +1,6 @@
 #include "./matrix_io.h"
 
-#include <stdio.h>
+#include <cstdio>
 
 void print_matrix(int rows, int cols, int m, const double* data, int r)
 {
@@ -23,10 +23,10 @@ void print_matrix(int rows, int cols, int m, const double* data, int r)
                 + col * height + (row - row_start) * width;
 
             for (int q = 0; q < count; q++)
-                printf(" %10.3e", values[q]);
+                std::printf(" %10.3e", values[q]);
 
             col += count;
         }
-        printf("\n");
+        std::printf("\n");
     }
 }
