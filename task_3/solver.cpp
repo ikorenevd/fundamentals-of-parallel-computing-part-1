@@ -29,9 +29,13 @@ void matrix_multiplication(const double* A, const double *B, double* result, int
 {
     memset(result, 0, sizeof(double) * f * k);
     for (int i = 0; i < f; i++)
-        for (int j = 0; j < k; j++)
-            for (int u = 0; u < l; u++)
-                result[i * k + j] += A[i * l + u] * B[u * k + j];
+        for (int u = 0; u < l; u++)
+        {
+            double a = A[i * l + u];
+            for (int j = 0; j < k; j++)
+                result[i * k + j] += a * B[u * k + j];
+
+        }
 }
 
 // 1 если нашли успешно и матрица обратима, 0 если обратное
@@ -79,29 +83,33 @@ bool invert_block(double* block, double* inverse, int m, int* block_perm, double
         //     determinant = -determinant;
 
         // меняем строки местами
-        for (int j = 0; j < m; j++)
-        {
-            double temp = block[alpha * m + j];
-            block[alpha * m + j] = block[pivot_i * m + j];
-            block[pivot_i * m + j] = temp;
+        if (pivot_i != alpha)
+            for (int j = 0; j < m; j++)
+            {
+                double temp = block[alpha * m + j];
+                block[alpha * m + j] = block[pivot_i * m + j];
+                block[pivot_i * m + j] = temp;
 
-            temp = inverse[alpha * m + j];
-            inverse[alpha * m + j] = inverse[pivot_i * m + j];
-            inverse[pivot_i * m + j] = temp;
-        }
+                temp = inverse[alpha * m + j];
+                inverse[alpha * m + j] = inverse[pivot_i * m + j];
+                inverse[pivot_i * m + j] = temp;
+            }
 
         // меняем столбцы
-        for (int i = 0; i < m; i++)
+        if (pivot_j != alpha)
         {
-            double temp = block[i * m + alpha];
-            block[i * m + alpha] = block[i * m + pivot_j];
-            block[i * m + pivot_j] = temp;
+            for (int i = 0; i < m; i++)
+            {
+                double temp = block[i * m + alpha];
+                block[i * m + alpha] = block[i * m + pivot_j];
+                block[i * m + pivot_j] = temp;
+            }
+            
+            // индексы столбцов
+            int temp_int = block_perm[alpha];
+            block_perm[alpha] =  block_perm[pivot_j];
+            block_perm[pivot_j] = temp_int;
         }
-
-        // индексы столбцов
-        int temp_int = block_perm[alpha];
-        block_perm[alpha] =  block_perm[pivot_j];
-        block_perm[pivot_j] = temp_int;
 
         // обнуляем
         for (int i = alpha + 1; i < m; i++)
@@ -159,8 +167,106 @@ bool invert_block(double* block, double* inverse, int m, int* block_perm, double
     return 1;
 }
 
-// block_inverse не должен быть равен block2 и block3
-bool LinearSystem::finding_block_pivot(int alpha, int& pivot_i, int& pivot_j, double* block_inverse)
+bool naive_gauss_solve_block(double* block, int m, double* b, int* block_perm)
+{
+    int alpha = 0;
+
+    for (alpha = 0; alpha < m; alpha++)
+    {
+        double abs_pivot = 0., temp = 0.;
+        int pivot_i = 0, pivot_j = 0;
+        // ищем наибольший по модулю элемент
+        for (int i = alpha; i < m; i++)
+            for (int j = alpha; j < m; j++)
+                if (fabs(block[i * m + j]) > abs_pivot)
+                {
+                    abs_pivot = fabs(block[i * m + j]);
+                    pivot_i = i;
+                    pivot_j = j;
+                }
+
+        // todo: нужно ли делать относительный эпсион(домножать на норму матрицы)
+        // если главный элемент не подходит, то выходим
+        if (!isfinite(abs_pivot) || abs_pivot < MACHINE_EPS)
+            return 0;
+
+        // физически меняем строки alpha и pivot_i
+        for (int j = alpha; j < m; j++)
+        {
+            temp = block[pivot_i * m + j];
+            block[pivot_i * m + j] = block[alpha * m + j];
+            block[alpha * m + j] = temp;
+        }
+
+        temp = b[pivot_i];
+        b[pivot_i] = b[alpha];
+        b[alpha] = temp;
+
+        // физически меняем столбцы alpha и pivot_j
+        for (int i = 0; i < m; i++)
+        {
+            temp = block[i * m + alpha];
+            block[i * m + alpha] = block[i * m + pivot_j];
+            block[i * m + pivot_j] = temp;
+        }
+
+        int t = block_perm[alpha];
+        block_perm[alpha] = block_perm[pivot_j];
+        block_perm[pivot_j] = t;
+
+
+        // зануляем
+        for (int i = alpha + 1; i < m; i++)
+        {
+            double coeff = block[i * m + alpha] / block[alpha * m + alpha];
+
+            for (int j = alpha + 1; j < m; j++)
+                block[i * m + j] -= coeff * block[alpha * m + j];
+
+            b[i] -= coeff * b[alpha];
+            block[i * m + alpha] = 0.;
+        }
+    }
+
+    for (int i = m - 1; i >= 0; i--)
+    {
+        double diagonal = block[i * m + i];
+        if (!isfinite(diagonal) || fabs(diagonal) < MACHINE_EPS)
+            return 0;
+
+        double rhs = b[i];
+        for (int j = i + 1; j < m; j++)
+            rhs -= block[i * m + j] * b[j];
+
+        if (!isfinite(rhs))
+            return 0;
+
+        double value = rhs / diagonal;
+        if (!isfinite(value))
+            return 0;
+
+        b[i] = value;
+    }
+
+    // Восстанавливаем исходный порядок неизвестных.
+    for (int i = 0; i < m;)
+    {
+        int k = block_perm[i];
+        if (k == i)
+        {
+            i++;
+            continue;
+        }
+
+        std::swap(b[i], b[k]);
+        block_perm[i] = block_perm[k];
+        block_perm[k] = k;
+    }
+
+    return 1;
+}
+
+bool LinearSystem::finding_block_pivot(int alpha, int& pivot_i, int& pivot_j, double* ws_block1, double* ws_block2, double* block_inverse)
 {
     pivot_i = -1;
     pivot_j = -1;
@@ -172,12 +278,12 @@ bool LinearSystem::finding_block_pivot(int alpha, int& pivot_i, int& pivot_j, do
     {
         for (int j = alpha; j < k; j++)
         {
-            // block2 хранит кандидата, block3 — его обратную матрицу.
-            get_block(i, j, block2);
-            if (!invert_block(block2, block3, m, w_perm, abs_inverse_det))
+            // ws_block1 хранит кандидата, ws_block2 — его обратную матрицу.
+            get_block(i, j, ws_block1);
+            if (!invert_block(ws_block1, ws_block2, m, w_perm, abs_inverse_det))
                 continue;
 
-            double inverse_norm = calculate_block_norm(block3, m);
+            double inverse_norm = calculate_block_norm(ws_block2, m);
             if (!isfinite(inverse_norm))
                 continue;
 
@@ -187,7 +293,7 @@ bool LinearSystem::finding_block_pivot(int alpha, int& pivot_i, int& pivot_j, do
                 pivot_i = i;
                 pivot_j = j;
                 pivot_norm = inverse_norm;
-                std::copy(block3, block3 + m * m, block_inverse);
+                std::copy(ws_block2, ws_block2 + m * m, block_inverse);
             }
         }
     }
@@ -251,7 +357,6 @@ bool LinearSystem::naive_full_matrix_to_triangular()
         for (int i = alpha + 1; i < n; i++)
         {
             double coeff = A[i * n + alpha] / A[alpha * n + alpha];
-                return 0;
 
             for (int j = alpha + 1; j < n; j++)
                 A[i * n + j] -= coeff * A[alpha * n + j];
@@ -292,11 +397,11 @@ bool LinearSystem::naive_traingular_solution()
 
 bool LinearSystem::blocked_matrix_to_triangular()
 {
-    // используем block1 для обратного блока
+    // используем block1 для обратного блока, block2 и block3 - для работы
     for (int alpha = 0; alpha < k; alpha++)
     {
         int pivot_i, pivot_j;
-        if (!finding_block_pivot(alpha, pivot_i, pivot_j, block1))
+        if (!finding_block_pivot(alpha, pivot_i, pivot_j, block2, block3, block1))
             return 0;
         
         swap_blocked_rows(alpha, pivot_i);
@@ -304,8 +409,9 @@ bool LinearSystem::blocked_matrix_to_triangular()
 
         {
             // на место главного блока ставим единичный
-            for (int i = 0; i < m * m; i++)
-                block2[i] = (double)(i % (m + 1) == 0);
+            memset(block2, 0, m * m);
+            for (int i = 0; i < m; i++)
+                block2[i * m + i] = 1.;
             set_block(alpha, alpha, block2);
 
             // обновляем все блоки справа от него
@@ -357,14 +463,23 @@ bool LinearSystem::blocked_matrix_to_triangular()
     // Последний блок решаем один раз после исключения всех полных блоков.
     if (l != 0)
     {
-        double abs_inverse_det = 0.;
+        // double abs_inverse_det = 0.;
+        // get_block(k, k, block1);
+
+        // if (!invert_block(block1, block2, l, w_perm, abs_inverse_det))
+        //     return 0;
+
+        // matrix_multiplication(block2, b + k * m, block1, l, l, 1);
+        // std::copy(block1, block1 + l, b + k * m);
+
         get_block(k, k, block1);
 
-        if (!invert_block(block1, block2, l, w_perm, abs_inverse_det))
+        std::copy(b + k * m, b + k * m + l, block2);
+
+        if (!naive_gauss_solve_block(block1, l, block2, w_perm))
             return 0;
 
-        matrix_multiplication(block2, b + k * m, block1, l, l, 1);
-        std::copy(block1, block1 + l, b + k * m);
+        std::copy(block2, block2 + l, b + k * m);
     }
 
     return 1;

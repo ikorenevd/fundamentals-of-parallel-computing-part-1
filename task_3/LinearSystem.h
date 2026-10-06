@@ -37,7 +37,7 @@ class LinearSystem
         void get_block(int i, int j, double* dest) const;
         void set_block(int i, int j, const double* src);
 
-        bool finding_block_pivot(int alpha, int& pivot_i, int& pivot_j, double* invert_block);
+        bool finding_block_pivot(int alpha, int& pivot_i, int& pivot_j, double* ws_block1, double* ws_block2, double* invert_block);
 
         void swap_blocked_rows(int i, int j);
         void swap_blocked_columns(int i, int j);
