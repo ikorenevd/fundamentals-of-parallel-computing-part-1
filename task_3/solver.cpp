@@ -17,7 +17,7 @@ double calculate_block_norm(const double* block, int m, double* vector_norms)
     std::memset(vector_norms, 0, sizeof(double) * m);
     for (int i = 0; i < m; i++)
         for (int j = 0; j < m; j++)
-            vector_norms[i * m + j] += std::fabs(block[i]);
+            vector_norms[i] += std::fabs(block[i * m + j]);
 
     for (int i = 0; i < m; i++)
         if (vector_norms[i] > max)
