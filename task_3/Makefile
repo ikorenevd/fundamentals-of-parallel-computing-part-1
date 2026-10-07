@@ -43,3 +43,5 @@ memcheck: main.cpp LinearSystem.cpp solver.cpp matrix_io.cpp LinearSystem.h solv
 	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 100 23 10 4
 	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 200 2 10 4
 
+zip:
+	zip Korenev_ID.zip *.cpp *.h Makefile
