@@ -93,7 +93,6 @@ int main(int argc, char** argv)
     // вывод матрицы и правой части(второй вывод не нужен)
     std::printf("Matrix A:\n");
     system.print_matrix(r);
-    // system.print_rhs(r);
 
     // решаем
     std::clock_t start = std::clock();

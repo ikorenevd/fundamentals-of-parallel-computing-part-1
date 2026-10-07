@@ -237,7 +237,6 @@ bool LinearSystem::init_rhs()
                 double sum = b[row + p];
 
                 // столбцы с чётным глобальным индексом
-    
                 for (int q = col % 2; q < width; q += 2)
                     sum += block[q];
 
@@ -247,10 +246,6 @@ bool LinearSystem::init_rhs()
 
             col += width;
         }
-
-        for (int p = 0; p < height; p++)
-            if (!std::isfinite(b[row + p]))
-                return 0;
 
         row += height;
     }
@@ -284,7 +279,7 @@ void LinearSystem::print_solution(int r) const
 void LinearSystem::get_block(int i, int j, double* dest) const
 {
     int height = std::min(m, n - i * m);
-    int width = std::min(m, n - j * m);
+    int width  = std::min(m, n - j * m);
     int offset = i * m * n + j * m * height;
 
     std::memcpy(dest, A + offset, height * width * sizeof(double));
@@ -293,7 +288,7 @@ void LinearSystem::get_block(int i, int j, double* dest) const
 void LinearSystem::set_block(int i, int j, const double* src)
 {
     int height = std::min(m, n - i * m);
-    int width = std::min(m, n - j * m);
+    int width  = std::min(m, n - j * m);
     int offset = i * m * n + j * m * height;
 
     std::memcpy(A + offset, src, height * width * sizeof(double));
@@ -305,20 +300,20 @@ void LinearSystem::compute_residuals(double& r1, double& r2) const
     r1 = -1; r2 = -1;
 
     double residual = 0.;
-    double norm_b = 0.;
-    double error = 0.;
+    double norm_b   = 0.;
+    double error    = 0.;
 
     // обход строк в блочном хранении
     for (int row = 0; row < n; row++)
     {
         int block_row = row / m;
-        int height = std::min(m, n - block_row * m);
+        int height    = std::min(m, n - block_row * m);
         int local_row = row % m;
-        double ax = 0.;
+        double ax    = 0.;
 
         for (int col = 0, block_col = 0; col < n; block_col++)
         {
-            int width = std::min(m, n - col);
+            int width  = std::min(m, n - col);
             int offset = block_row * m * n + block_col * m * height + local_row * width;
 
             for (int j = 0; j < width; j++)
@@ -340,7 +335,7 @@ void LinearSystem::compute_residuals(double& r1, double& r2) const
 // todo: переписать, суммируя в блоках
 double LinearSystem::get_matrix_norm() const
 {
-    double norm = 0.;
+    double norm     = 0.;
     int block_count = k + (l != 0);
 
     for (int i = 0; i < block_count; i++)
@@ -353,7 +348,7 @@ double LinearSystem::get_matrix_norm() const
 
             for (int j = 0; j < block_count; j++)
             {
-                int width = std::min(m, n - j * m);
+                int width           = std::min(m, n - j * m);
                 const double* block = A + i * m * n + j * m * height;
 
                 for (int col = 0; col < width; col++)
