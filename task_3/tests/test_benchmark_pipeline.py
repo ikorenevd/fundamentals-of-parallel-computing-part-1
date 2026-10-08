@@ -70,11 +70,11 @@ class ExecutionTests(unittest.TestCase):
         self.directory = Path(self.temporary.name)
         self.log = self.directory / "complete log.txt"
 
-    def execute(self, stdout, *, stderr="", exit_code=0, expectation="any"):
+    def execute(self, stdout, *, stderr="", exit_code=0, expectation="any", s=1):
         program = (f"import sys; sys.stdout.write({stdout!r}); "
                    f"sys.stderr.write({stderr!r}); sys.exit({exit_code})")
         return support.execute_case([sys.executable, "-c", program],
-                                    self.log, expectation, 3, 2, 1)
+                                    self.log, expectation, 3, 2, s)
 
     def test_timing_comes_from_report_and_log_contains_both_streams(self):
         stdout = "Matrix A:\nSolution x:\n" + report()
@@ -110,6 +110,21 @@ class ExecutionTests(unittest.TestCase):
         result = support.execute_case([sys.executable, "-c", program],
                                       self.log, "error", 3, 2, 1)
         self.assertEqual(result, ("-1", "-1", "crash", False))
+
+    def test_hilbert_accuracy_is_diagnostic(self):
+        for values in (dict(res1="6.21e-8"), dict(res2="7.93e-2")):
+            with self.subTest(values=values):
+                result = self.execute(report(s=4, **values), expectation="solved", s=4)
+                self.assertEqual(result, ("12.34", "56.78", "solved", True))
+
+    def test_hilbert_still_rejects_invalid_results(self):
+        for values in (dict(res1="inf"), dict(res2="nan")):
+            with self.subTest(values=values):
+                result = self.execute(report(s=4, **values), expectation="solved", s=4)
+                self.assertEqual(result, ("-1", "-1", "invalid_report", False))
+        result = self.execute(report(s=4, res1="-1", res2="-1"),
+                              expectation="solved", s=4)
+        self.assertFalse(result[3])
 
     def test_waits_until_completion_and_uses_reported_times(self):
         program = ("import sys, time; print('before delay', flush=True); "

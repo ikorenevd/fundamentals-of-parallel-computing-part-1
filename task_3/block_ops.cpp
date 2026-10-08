@@ -56,7 +56,7 @@ double calculate_block_norm(const double* block, int m, double* vector_norms)
 }
 
 // A = f × l, B = l × k, result = f × k.
-void matrix_multiplication(const double* A, const double* B, double* result, int f, int l, int k)
+void matrix_multiplication(const double* A, const double* B, double* result, int f, int l, int k, double eps)
 {
     int i = 0;
     for (; i + 2 < f; i += 3)
@@ -93,17 +93,17 @@ void matrix_multiplication(const double* A, const double* B, double* result, int
                 c02 += x0 * y2; c12 += x1 * y2; c22 += x2 * y2;
             }
 
-            r0[j]     = c00;
-            r0[j + 1] = c01;
-            r0[j + 2] = c02;
+            r0[j]     = std::fabs(c00) < eps ? 0. : c00;
+            r0[j + 1] = std::fabs(c01) < eps ? 0. : c01;
+            r0[j + 2] = std::fabs(c02) < eps ? 0. : c02;
 
-            r1[j]     = c10;
-            r1[j + 1] = c11;
-            r1[j + 2] = c12;
+            r1[j]     = std::fabs(c10) < eps ? 0. : c10;
+            r1[j + 1] = std::fabs(c11) < eps ? 0. : c11;
+            r1[j + 2] = std::fabs(c12) < eps ? 0. : c12;
 
-            r2[j]     = c20;
-            r2[j + 1] = c21;
-            r2[j + 2] = c22;
+            r2[j]     = std::fabs(c20) < eps ? 0. : c20;
+            r2[j + 1] = std::fabs(c21) < eps ? 0. : c21;
+            r2[j + 2] = std::fabs(c22) < eps ? 0. : c22;
         }
 
         // Остаточные столбцы 3x1.
@@ -119,9 +119,9 @@ void matrix_multiplication(const double* A, const double* B, double* result, int
                 c2 += a2[u] * b;
             }
 
-            r0[j] = c0;
-            r1[j] = c1;
-            r2[j] = c2;
+            r0[j] = std::fabs(c0) < eps ? 0. : c0;
+            r1[j] = std::fabs(c1) < eps ? 0. : c1;
+            r2[j] = std::fabs(c2) < eps ? 0. : c2;
         }
     }
 
@@ -146,9 +146,9 @@ void matrix_multiplication(const double* A, const double* B, double* result, int
                 c2 += x * b[2];
             }
 
-            r[j]     = c0;
-            r[j + 1] = c1;
-            r[j + 2] = c2;
+            r[j]     = std::fabs(c0) < eps ? 0. : c0;
+            r[j + 1] = std::fabs(c1) < eps ? 0. : c1;
+            r[j + 2] = std::fabs(c2) < eps ? 0. : c2;
         }
 
         // Остаточные элементы 1x1
@@ -157,13 +157,13 @@ void matrix_multiplication(const double* A, const double* B, double* result, int
             double sum = 0.;
             for (int u = 0; u < l; u++)
                 sum += a[u] * B[u * k + j];
-            r[j] = sum;
+            r[j] = std::fabs(sum) < eps ? 0. : sum;
         }
     }
 }
 
 // A = f × l, B = l × k, result -= A × B; result = f × k.
-void matrix_multiplication_subtract(const double* A, const double* B, double* result, int f, int l, int k)
+void matrix_multiplication_subtract(const double* A, const double* B, double* result, int f, int l, int k, double eps)
 {
     int i = 0;
     for (; i + 2 < f; i += 3)
@@ -200,17 +200,26 @@ void matrix_multiplication_subtract(const double* A, const double* B, double* re
                 c02 += x0 * y2; c12 += x1 * y2; c22 += x2 * y2;
             }
 
-            r0[j]     -= c00;
-            r0[j + 1] -= c01;
-            r0[j + 2] -= c02;
+            c00       = r0[j] - c00;
+            r0[j]     = std::fabs(c00) < eps ? 0. : c00;
+            c01       = r0[j + 1] - c01;
+            r0[j + 1] = std::fabs(c01) < eps ? 0. : c01;
+            c02       = r0[j + 2] - c02;
+            r0[j + 2] = std::fabs(c02) < eps ? 0. : c02;
 
-            r1[j]     -= c10;
-            r1[j + 1] -= c11;
-            r1[j + 2] -= c12;
+            c10       = r1[j] - c10;
+            r1[j]     = std::fabs(c10) < eps ? 0. : c10;
+            c11       = r1[j + 1] - c11;
+            r1[j + 1] = std::fabs(c11) < eps ? 0. : c11;
+            c12       = r1[j + 2] - c12;
+            r1[j + 2] = std::fabs(c12) < eps ? 0. : c12;
 
-            r2[j]     -= c20;
-            r2[j + 1] -= c21;
-            r2[j + 2] -= c22;
+            c20       = r2[j] - c20;
+            r2[j]     = std::fabs(c20) < eps ? 0. : c20;
+            c21       = r2[j + 1] - c21;
+            r2[j + 1] = std::fabs(c21) < eps ? 0. : c21;
+            c22       = r2[j + 2] - c22;
+            r2[j + 2] = std::fabs(c22) < eps ? 0. : c22;
         }
 
         // Остаточные столбцы 3x1.
@@ -226,9 +235,12 @@ void matrix_multiplication_subtract(const double* A, const double* B, double* re
                 c2 += a2[u] * b;
             }
 
-            r0[j] -= c0;
-            r1[j] -= c1;
-            r2[j] -= c2;
+            c0    = r0[j] - c0;
+            r0[j] = std::fabs(c0) < eps ? 0. : c0;
+            c1    = r1[j] - c1;
+            r1[j] = std::fabs(c1) < eps ? 0. : c1;
+            c2    = r2[j] - c2;
+            r2[j] = std::fabs(c2) < eps ? 0. : c2;
         }
     }
 
@@ -253,9 +265,12 @@ void matrix_multiplication_subtract(const double* A, const double* B, double* re
                 c2 += x * b[2];
             }
 
-            r[j]     -= c0;
-            r[j + 1] -= c1;
-            r[j + 2] -= c2;
+            c0       = r[j] - c0;
+            r[j]     = std::fabs(c0) < eps ? 0. : c0;
+            c1       = r[j + 1] - c1;
+            r[j + 1] = std::fabs(c1) < eps ? 0. : c1;
+            c2       = r[j + 2] - c2;
+            r[j + 2] = std::fabs(c2) < eps ? 0. : c2;
         }
 
         // Остаточные элементы 1x1
@@ -264,7 +279,8 @@ void matrix_multiplication_subtract(const double* A, const double* B, double* re
             double sum = 0.;
             for (int u = 0; u < l; u++)
                 sum += a[u] * B[u * k + j];
-            r[j] -= sum;
+            sum  = r[j] - sum;
+            r[j] = std::fabs(sum) < eps ? 0. : sum;
         }
     }
 }
@@ -452,12 +468,4 @@ bool naive_gauss_solve_block(double* block, int m, double* b, int* block_perm)
     }
 
     return 1;
-}
-
-// Удаляем значения, пренебрежимо малые относительно масштаба блока.
-void clear_small_values(double* values, int count, double eps)
-{
-    for (int i = 0; i < count; i++)
-        if (std::fabs(values[i]) < eps)
-            values[i] = 0.;
 }

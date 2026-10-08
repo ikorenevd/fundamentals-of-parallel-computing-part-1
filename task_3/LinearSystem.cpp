@@ -6,6 +6,7 @@
 #include <cstring>
 #include <cstdio>
 #include <cmath>
+#include <cfloat>
 #include <climits>
 #include <utility>
 
@@ -232,22 +233,30 @@ bool LinearSystem::init_rhs()
         for (int col = 0; col < n; )
         {
             int width = std::min(m, n - col);
-
             for (int p = 0; p < height; p++)
             {
                 double sum = b[row + p];
-
                 // столбцы с чётным глобальным индексом
                 for (int q = col % 2; q < width; q += 2)
-                    sum += block[q];
-
+                {
+                    double value = block[q];
+                    if (!std::isfinite(value))
+                        return 0;
+                    // чтобы не было переполнения правой части
+                    if ((sum > 0. && value > 0.) || (sum < 0. && value < 0.))
+                    {
+                        double abs_sum   = std::fabs(sum);
+                        double abs_value = std::fabs(value);
+                        if (std::min(abs_sum, abs_value) > DBL_MAX - std::max(abs_sum, abs_value))
+                            return 0;
+                    }
+                    sum += value;
+                }
                 b[row + p] = sum;
-                block += width;
+                block     += width;
             }
-
             col += width;
         }
-
         row += height;
     }
     return 1;

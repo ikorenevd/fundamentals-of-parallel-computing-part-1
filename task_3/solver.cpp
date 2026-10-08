@@ -42,10 +42,12 @@ bool LinearSystem::finding_block_pivot(int alpha, int& pivot_i, int& pivot_j, do
     if (pivot_i == -1)
         return 0;
 
-    if (inverse_best != block_inverse)
-        std::memcpy(block_inverse, inverse_best, sizeof(double) * m * m);
-
-    clear_small_values(block_inverse, m * m, MACHINE_EPS * MACHINE_EPS * pivot_norm);
+    double eps = MACHINE_EPS * MACHINE_EPS * pivot_norm;
+    for (int t = 0; t < m * m; t++)
+    {
+        double value = inverse_best[t];
+        block_inverse[t] = std::fabs(value) < eps ? 0. : value;
+    }
     return 1;
 }
 
@@ -76,8 +78,7 @@ bool LinearSystem::blocked_matrix_to_triangular()
             {
                 int width = std::min(m, n - j * m);
                 double* old_alpha_j = get_block_address(alpha, j);
-                matrix_multiplication(block1, old_alpha_j, block3, m, m, width);
-                clear_small_values(block3, m * width, eps);
+                matrix_multiplication(block1, old_alpha_j, block3, m, m, width, eps);
                 set_block(alpha, j, block3);
             }
 
@@ -100,8 +101,7 @@ bool LinearSystem::blocked_matrix_to_triangular()
                     double* alpha_j = get_block_address(alpha, j);
                     // get_block(i, j, block4);
                     double* i_j = get_block_address(i, j);
-                    matrix_multiplication_subtract(i_alpha, alpha_j, i_j, height, m, width);
-                    clear_small_values(i_j, height * width, matrix_eps);
+                    matrix_multiplication_subtract(i_alpha, alpha_j, i_j, height, m, width, matrix_eps);
                     // set_block(i, j, block4);
                 }
 
