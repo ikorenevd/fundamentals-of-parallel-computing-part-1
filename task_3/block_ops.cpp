@@ -275,6 +275,10 @@ void matrix_multiplication_subtract(const double* A, const double* B, double* re
 // при поиске обратной block изменяется, его нужно выделять с помощью get_block
 bool invert_block(double* block, double* inverse, int m, int* block_perm)
 {
+    double eps = MACHINE_EPS * calculate_block_norm(block, m, inverse);
+    if (eps < MACHINE_EPS)
+        eps = MACHINE_EPS;
+
     // делаем inverse единичной
     std::memset(inverse, 0, sizeof(double) * m * m);
     for (int i = 0; i < m; i++)
@@ -290,7 +294,7 @@ bool invert_block(double* block, double* inverse, int m, int* block_perm)
         int pivot_j      = alpha;
         double abs_pivot = find_block_max(block, m, alpha, pivot_i, pivot_j);
 
-        if (abs_pivot < MACHINE_EPS)
+        if (abs_pivot < eps)
             return 0;
 
         // меняем строки местами
@@ -311,8 +315,14 @@ bool invert_block(double* block, double* inverse, int m, int* block_perm)
         }
 
         // обнуляем
+        double row_eps = MACHINE_EPS * abs_pivot;
         for (int i = alpha + 1; i < m; i++)
         {
+            if (std::fabs(block[i * m + alpha]) < row_eps)
+            {
+                block[i * m + alpha] = 0.;
+                continue;
+            }
             double coeff = block[i * m + alpha] / block[alpha * m + alpha];
 
             for (int j = alpha + 1; j < m; j++)
@@ -331,6 +341,8 @@ bool invert_block(double* block, double* inverse, int m, int* block_perm)
         for (int k = i + 1; k < m; k++)
         {
             double coeff = block[i * m + k];
+            if (std::fabs(coeff) < MACHINE_EPS * std::fabs(block[i * m + i]))
+                continue;
 
             for (int j = 0; j < m; j++)
                 inverse[i * m + j] -= coeff * inverse[k * m + j];
@@ -389,8 +401,14 @@ bool naive_gauss_solve_block(double* block, int m, double* b, int* block_perm)
         }
             
         // зануляем
+        double row_eps = MACHINE_EPS * abs_pivot;
         for (int i = alpha + 1; i < m; i++)
         {
+            if (std::fabs(block[i * m + alpha]) < row_eps)
+            {
+                block[i * m + alpha] = 0.;
+                continue;
+            }
             double coeff = block[i * m + alpha] / block[alpha * m + alpha];
 
             for (int j = alpha + 1; j < m; j++)
@@ -434,4 +452,12 @@ bool naive_gauss_solve_block(double* block, int m, double* b, int* block_perm)
     }
 
     return 1;
+}
+
+// Удаляем значения, пренебрежимо малые относительно масштаба блока.
+void clear_small_values(double* values, int count, double eps)
+{
+    for (int i = 0; i < count; i++)
+        if (std::fabs(values[i]) < eps)
+            values[i] = 0.;
 }

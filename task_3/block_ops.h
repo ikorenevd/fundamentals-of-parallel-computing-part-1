@@ -9,4 +9,6 @@ void matrix_multiplication_subtract(const double* A, const double* B, double* re
 bool invert_block(double* block, double* inverse, int m, int* block_perm);
 bool naive_gauss_solve_block(double* block, int m, double* b, int* block_perm);
 
+void clear_small_values(double* values, int count, double eps);
+
 #endif
