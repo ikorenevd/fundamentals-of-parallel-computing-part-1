@@ -57,6 +57,7 @@ LinearSystem::LinearSystem(int _n, int _m)
     m = _m;
     k = n / m;
     l = n % m;
+    block_count = k + (l != 0);
 }
 
 LinearSystem::~LinearSystem()
@@ -296,8 +297,7 @@ void LinearSystem::set_block(int i, int j, const double* src)
 
 double LinearSystem::get_matrix_norm() const
 {
-    double norm     = 0.;
-    int block_count = k + (l != 0);
+    double norm = 0.;
 
     for (int i = 0; i < block_count; i++)
     {
@@ -346,7 +346,6 @@ void LinearSystem::swap_blocked_columns(int i, int j)
                          A + row * n * m + (i + 1) * m * m,
                          A + row * n * m + j * m * m);
 
-    int l = n % m;
     if (l != 0)
     {
         double* tail = A + (k) * m * n;
@@ -356,4 +355,10 @@ void LinearSystem::swap_blocked_columns(int i, int j)
     }
 
     std::swap(perm[i], perm[j]);
+}
+
+double* LinearSystem::get_block_address(int i, int j) const
+{
+    int height = std::min(m, n - i * m);
+    return (A + i * m * n + j * m * height);
 }

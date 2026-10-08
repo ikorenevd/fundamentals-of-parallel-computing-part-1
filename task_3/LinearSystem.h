@@ -23,9 +23,6 @@ class LinearSystem
         int solve();
         void compute_residuals(double& r1, double& r2) const;
 
-        bool naive_full_matrix_to_triangular();
-        bool naive_traingular_solution();
-
         bool blocked_matrix_to_triangular();
         bool triangular_blocked_to_solution();
     private:
@@ -43,6 +40,8 @@ class LinearSystem
         void swap_blocked_columns(int i, int j);
 
         double get_matrix_norm() const;
+
+        double* get_block_address(int i, int j) const;
     private:
         double* A          = nullptr;
         double* b          = nullptr;
@@ -60,6 +59,7 @@ class LinearSystem
         int m = 0;
         int k = 0;
         int l = 0;
+        int block_count = 0;
 };
 
 #endif

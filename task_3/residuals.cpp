@@ -18,7 +18,7 @@ void LinearSystem::compute_residuals(double& r1, double& r2) const
         int block_row = row / m;
         int height    = std::min(m, n - block_row * m);
         int local_row = row % m;
-        double ax    = 0.;
+        double ax     = 0.;
 
         for (int col = 0, block_col = 0; col < n; block_col++)
         {

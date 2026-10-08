@@ -4,20 +4,53 @@
 #include <algorithm>
 #include <cstring>
 
+double find_block_max(double* block, int m, int alpha, int& pivot_i, int& pivot_j)
+{
+    double abs_pivot = 0.;
+
+    for (int i = alpha; i < m; i++)
+    {
+        double* row_address = block + i * m;
+        double row_max = 0.;
+        for (int j = alpha; j < m; j++)
+        {
+            double abs = std::fabs(*(row_address + j));
+            if (abs > row_max)
+                row_max = abs;
+        }
+
+        if (row_max > abs_pivot)
+        {
+            abs_pivot = row_max;
+            pivot_i = i;
+            for (int j = alpha; j < m; j++)
+            {
+                if (std::fabs(*(row_address + j)) >= row_max)
+                {
+                    pivot_j = j;
+                    break;
+                }
+            }
+        }
+    }
+
+    return abs_pivot;
+}
+
 double calculate_block_norm(const double* block, int m, double* vector_norms)
 {
     if (block == nullptr || m < 1 || vector_norms == nullptr)
         return HUGE_VAL;
 
     double max = 0.;
-    std::memset(vector_norms, 0, sizeof(double) * m);
     for (int i = 0; i < m; i++)
+    {
+        double sum = 0.;
         for (int j = 0; j < m; j++)
-            vector_norms[i] += std::fabs(block[i * m + j]);
-
-    for (int i = 0; i < m; i++)
-        if (vector_norms[i] > max)
-            max = vector_norms[i];
+            sum += std::fabs(block[i * m + j]);
+        if (sum > max)
+            max = sum;
+    }
 
     return max;
 }
@@ -255,17 +288,7 @@ bool invert_block(double* block, double* inverse, int m, int* block_perm)
     {
         int pivot_i      = alpha;
         int pivot_j      = alpha;
-        double abs_pivot = 0.;
-
-        // главный элемент
-        for (int i = alpha; i < m; i++)
-            for (int j = alpha; j < m; j++)
-                if(std::fabs(block[i * m + j]) > abs_pivot)
-                {
-                    abs_pivot = std::fabs(block[i * m + j]);
-                    pivot_i   = i;
-                    pivot_j   = j;
-                }
+        double abs_pivot = find_block_max(block, m, alpha, pivot_i, pivot_j);
 
         if (abs_pivot < MACHINE_EPS)
             return 0;
@@ -341,18 +364,8 @@ bool naive_gauss_solve_block(double* block, int m, double* b, int* block_perm)
 
     for (alpha = 0; alpha < m; alpha++)
     {
-        double abs_pivot = 0.;
         int pivot_i = 0, pivot_j = 0;
-
-        // ищем наибольший по модулю элемент
-        for (int i = alpha; i < m; i++)
-            for (int j = alpha; j < m; j++)
-                if (std::fabs(block[i * m + j]) > abs_pivot)
-                {
-                    abs_pivot = std::fabs(block[i * m + j]);
-                    pivot_i   = i;
-                    pivot_j   = j;
-                }
+        double abs_pivot = find_block_max(block, m, alpha, pivot_i, pivot_j);
 
         // todo: нужно ли делать относительный эпсион(домножать на норму матрицы)
         // если главный элемент не подходит, то выходим
@@ -360,15 +373,21 @@ bool naive_gauss_solve_block(double* block, int m, double* b, int* block_perm)
             return 0;
 
         // физически меняем строки alpha и pivot_i
-        for (int j = alpha; j < m; j++)
+        if (pivot_i != alpha)
+        {
+            for (int j = alpha; j < m; j++)
             std::swap(block[pivot_i * m + j], block[alpha * m + j]);
-        std::swap(b[pivot_i], b[alpha]);
+            std::swap(b[pivot_i], b[alpha]);
+        }
 
         // физически меняем столбцы alpha и pivot_j
-        for (int i = 0; i < m; i++)
+        if (pivot_j != alpha)
+        {
+            for (int i = 0; i < m; i++)
             std::swap(block[i * m + alpha], block[i * m + pivot_j]);
-        std::swap(block_perm[alpha], block_perm[pivot_j]);
-
+            std::swap(block_perm[alpha], block_perm[pivot_j]);
+        }
+            
         // зануляем
         for (int i = alpha + 1; i < m; i++)
         {
@@ -382,6 +401,7 @@ bool naive_gauss_solve_block(double* block, int m, double* b, int* block_perm)
         }
     }
 
+    // обратный ход
     for (int i = m - 1; i >= 0; i--)
     {
         double diagonal = block[i * m + i];
