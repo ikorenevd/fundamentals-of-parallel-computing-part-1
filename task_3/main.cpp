@@ -2,7 +2,7 @@
 #define _GNU_SOURCE 1
 #endif
 
-#define ENABLE_FPE 1
+#define ENABLE_FPE 0
 
 #include <cstdio>
 #include <ctime>
@@ -14,7 +14,7 @@
 
 #if ENABLE_FPE
 #include <cfenv>
-// нейрокод
+// нейрослопокод
 namespace
 {
     bool enable_fpe()

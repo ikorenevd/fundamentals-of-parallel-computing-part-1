@@ -202,7 +202,7 @@ bool LinearSystem::init_matrix_from_file(char* file_name)
         {
             double* value = A + matrix_offset(n, m, i, j);
 
-            if (std::fscanf(file, "%lf", value) != 1 || std::isnan(*value))
+            if (std::fscanf(file, "%lf", value) != 1 || std::isnan(*value) || std::isinf(*value))
             {
                 std::fclose(file);
                 return 0;
