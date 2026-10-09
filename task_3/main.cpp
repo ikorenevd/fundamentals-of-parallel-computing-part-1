@@ -2,15 +2,19 @@
 #define _GNU_SOURCE 1
 #endif
 
+#define ENABLE_FPE 1
+
 #include <cstdio>
 #include <ctime>
-#include <cfenv>
 #ifdef __linux__
 #include <sched.h>
 #endif
 
 #include "./LinearSystem.h"
 
+#if ENABLE_FPE
+#include <cfenv>
+// нейрокод
 namespace
 {
     bool enable_fpe()
@@ -47,14 +51,17 @@ namespace
         #endif
     }
 }
+#endif
 
 int main(int argc, char** argv)
 {
+#if ENABLE_FPE
     if (!enable_fpe())
     {
         std::fprintf(stderr, "error: cannot enable floating-point traps\n");
         return 1;
     }
+#endif
 
     int task = 11;
     int n = 0, m = 0, r = 0, s = 0;

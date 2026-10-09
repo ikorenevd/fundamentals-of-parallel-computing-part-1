@@ -60,6 +60,8 @@ class LinearSystem
         int k = 0;
         int l = 0;
         int block_count = 0;
+
+        double original_matrix_norm = 0.;
 };
 
 #endif

@@ -3,6 +3,7 @@
 #include "./LinearSystem.h"
 
 #include <cmath>
+#include <cfloat>
 #include <algorithm>
 #include <cstring>
 
@@ -54,7 +55,7 @@ bool LinearSystem::finding_block_pivot(int alpha, int& pivot_i, int& pivot_j, do
 bool LinearSystem::blocked_matrix_to_triangular()
 {
     double eps = MACHINE_EPS * MACHINE_EPS;
-    double matrix_eps = eps * get_matrix_norm();
+    double matrix_eps = eps * original_matrix_norm;
     // используем block1 для обратного блока, block2 и block3 - для работы, block4 - тоже(в начале для вычисления норма, потом для свободных членов)
     // block1 == pivot_inverse 
     for (int alpha = 0; alpha < k; alpha++)
@@ -157,6 +158,79 @@ bool LinearSystem::triangular_blocked_to_solution()
 
     return 1;
 }
+
+// bool LinearSystem::triangular_blocked_to_solution()
+// {
+//     // При таких модулях сумма n произведений с запасом помещается в double.
+//     double safe_limit = std::sqrt(DBL_MAX / (4. * n));
+//     double max_a = 0.;
+//     for (int row = 0; row < n; row++)
+//         for (int col = 0; col < n; col++)
+//             max_a = std::max(max_a, std::fabs(A[row * n + col]));
+
+//     if (l != 0)
+//         std::memcpy(solution + m * k, b + m * k, sizeof(double) * l);
+
+//     for (int i = k - 1; i >= 0; i--)
+//     {
+//         for (int row = 0; row < m; row++)
+//             solution[perm[i] * m + row] = b[i * m + row];
+
+//         for (int j = i + 1; j < block_count; j++)
+//         {
+//             int width     = std::min(m, n - j * m);
+//             double* block = A + i * m * n + j * m * m;
+//             int offset    = (j < k ? perm[j] : k) * m;
+
+//             double max_x = 0.;
+//             for (int col = 0; col < width; col++)
+//                 max_x = std::max(max_x, std::fabs(solution[offset + col]));
+
+//             for (int row = 0; row < m; row++)
+//             {
+//                 double& value = solution[perm[i] * m + row];
+//                 double sum = 0.;
+//                 if (max_a <= safe_limit && max_x <= safe_limit && std::fabs(value) <= safe_limit)
+//                 {
+//                     for (int col = 0; col < width; col++)
+//                         sum += block[row * width + col] * solution[offset + col];
+//                     value -= sum;
+//                     continue;
+//                 }
+
+//                 for (int col = 0; col < width; col++)
+//                 {
+//                     double a = block[row * width + col];
+//                     double x = solution[offset + col];
+//                     // Равенство тоже отбрасываем: порог деления мог округлиться вверх.
+//                     if (std::fabs(a) > 1. && std::fabs(x) > 1. && std::fabs(a) >= DBL_MAX / std::fabs(x))
+//                         return 0;
+
+//                     double product = a * x;
+//                     if ((sum > 0. && product > 0.) || (sum < 0. && product < 0.))
+//                     {
+//                         double abs_sum = std::fabs(sum);
+//                         double abs_product = std::fabs(product);
+//                         if (std::min(abs_sum, abs_product) > DBL_MAX - std::max(abs_sum, abs_product))
+//                             return 0;
+//                     }
+//                     sum += product;
+//                 }
+
+//                 if ((value > 0. && sum < 0.) || (value < 0. && sum > 0.))
+//                 {
+//                     double abs_value = std::fabs(value);
+//                     double abs_sum = std::fabs(sum);
+//                     if (std::min(abs_value, abs_sum) > DBL_MAX - std::max(abs_value, abs_sum))
+//                         return 0;
+//                 }
+//                 value -= sum;
+//             }
+//         }
+//     }
+
+//     return 1;
+// }
 
 int LinearSystem::solve()
 {

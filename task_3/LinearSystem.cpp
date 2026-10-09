@@ -153,7 +153,7 @@ bool LinearSystem::init(int s, char* file_name)
     if (!flag)
         return 0;
 
-    if (!std::isfinite(get_matrix_norm()))
+    if (!std::isfinite((original_matrix_norm = get_matrix_norm())))
         return 0;
 
     flag = init_rhs();
@@ -321,7 +321,12 @@ double LinearSystem::get_matrix_norm() const
                 int width           = std::min(m, n - j * m);
                 const double* block = A + i * m * n + j * m * height;
                 for (int col = 0; col < width; col++)
-                    sum += std::fabs(block[row * width + col]);
+                {
+                    double value = std::fabs(block[row * width + col]);
+                    if (std::min(sum, value) > DBL_MAX - std::max(sum, value))
+                        return HUGE_VAL; // return infinity
+                    sum += value;
+                }
             }
 
             if (sum > norm)
