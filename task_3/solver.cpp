@@ -89,7 +89,7 @@ bool LinearSystem::blocked_matrix_to_triangular()
             // Единичный диагональный блок задаёт нижнюю границу её масштаба.
             double* pivot_row = get_block_address(alpha, alpha);
             int pivot_row_size = m * (n - alpha * m);
-            double pivot_row_max;
+            double pivot_row_max = 0.;
             for (int t = m * m; t < pivot_row_size; t++)
                 pivot_row_max = std::max(pivot_row_max, std::fabs(pivot_row[t]));
             double pivot_row_eps = (MACHINE_EPS * MACHINE_EPS) * pivot_row_max;
