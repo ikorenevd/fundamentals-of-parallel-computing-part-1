@@ -2,7 +2,7 @@
 #define _GNU_SOURCE 1
 #endif
 
-#define ENABLE_FPE 0
+#define ENABLE_FPE 1
 
 #include <cstdio>
 #include <ctime>

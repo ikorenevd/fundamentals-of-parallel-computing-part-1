@@ -13,6 +13,7 @@ bool LinearSystem::finding_block_pivot(int alpha, int& pivot_i, int& pivot_j, do
     pivot_j = -1;
 
     double pivot_norm = 0.;
+    double pivot_eps = (n * MACHINE_EPS) * original_matrix_norm;
     double* inverse_candidate = ws_block2;
     double* inverse_best = block_inverse;
 
@@ -21,7 +22,7 @@ bool LinearSystem::finding_block_pivot(int alpha, int& pivot_i, int& pivot_j, do
         for (int j = alpha; j < k; j++)
         {
             get_block(i, j, ws_block1);
-            if (!invert_block(ws_block1, inverse_candidate, m, w_perm))
+            if (!invert_block(ws_block1, inverse_candidate, m, w_perm, pivot_eps))
                 continue;
 
             double inverse_norm = calculate_block_norm(inverse_candidate, m, ws_vector_norms);
@@ -35,7 +36,6 @@ bool LinearSystem::finding_block_pivot(int alpha, int& pivot_i, int& pivot_j, do
                 pivot_j = j;
                 pivot_norm = inverse_norm;
                 std::swap(inverse_best, inverse_candidate);
-                // std::memcpy(block_inverse, ws_block2, sizeof(double) * m * m);
             }
         }
     }
@@ -54,8 +54,7 @@ bool LinearSystem::finding_block_pivot(int alpha, int& pivot_i, int& pivot_j, do
 
 bool LinearSystem::blocked_matrix_to_triangular()
 {
-    double eps = MACHINE_EPS * MACHINE_EPS;
-    double matrix_eps = eps * original_matrix_norm;
+    double column_eps = (MACHINE_EPS * MACHINE_EPS) * original_matrix_norm;
     // используем block1 для обратного блока, block2 и block3 - для работы, block4 - тоже(в начале для вычисления норма, потом для свободных членов)
     // block1 == pivot_inverse 
     for (int alpha = 0; alpha < k; alpha++)
@@ -77,9 +76,7 @@ bool LinearSystem::blocked_matrix_to_triangular()
             // обновляем все блоки справа от него
             for (int j = alpha + 1; j < block_count; j++)
             {
-                int width = std::min(m, n - j * m);
-                double* old_alpha_j = get_block_address(alpha, j);
-                matrix_multiplication(block1, old_alpha_j, block3, m, m, width, eps);
+                matrix_multiplication(block1, get_block_address(alpha, j), block3, m, m, std::min(m, n - j * m));
                 set_block(alpha, j, block3);
             }
 
@@ -89,21 +86,31 @@ bool LinearSystem::blocked_matrix_to_triangular()
         }
 
         {
+            // Единичный диагональный блок задаёт нижнюю границу её масштаба.
+            double* pivot_row = get_block_address(alpha, alpha);
+            int pivot_row_size = m * (n - alpha * m);
+            double pivot_row_max;
+            for (int t = m * m; t < pivot_row_size; t++)
+                pivot_row_max = std::max(pivot_row_max, std::fabs(pivot_row[t]));
+            double pivot_row_eps = (MACHINE_EPS * MACHINE_EPS) * pivot_row_max;
+            for (int t = m * m; t < pivot_row_size; t++)
+                if (std::fabs(pivot_row[t]) < pivot_row_eps)
+                    pivot_row[t] = 0.;
+        }
+
+        {
             // обновляем нижние блоки и свободные члены(все блоки и квадратные, и прямоугольные)
             for (int i = alpha + 1; i < block_count; i++)
             {
                 int height = std::min(m, n - i * m);
-                // get_block(i, alpha, block1); // block1 = A_{i, \alpha}
                 double* i_alpha = get_block_address(i, alpha);
+                for (int t = 0; t < height * m; t++)
+                    if (std::fabs(i_alpha[t]) < column_eps)
+                        i_alpha[t] = 0.;
+
                 for (int j = alpha + 1; j < block_count; j++)
                 {
-                    int width = std::min(m, n - j * m);
-                    // get_block(alpha, j, block2); // block2 = A_{\alpha, j}
-                    double* alpha_j = get_block_address(alpha, j);
-                    // get_block(i, j, block4);
-                    double* i_j = get_block_address(i, j);
-                    matrix_multiplication_subtract(i_alpha, alpha_j, i_j, height, m, width, matrix_eps);
-                    // set_block(i, j, block4);
+                    matrix_multiplication_subtract(i_alpha, get_block_address(alpha, j), get_block_address(i, j), height, m, std::min(m, n - j * m));
                 }
 
                 matrix_multiplication(i_alpha, b + alpha * m, block2, height, m, 1);
@@ -112,7 +119,6 @@ bool LinearSystem::blocked_matrix_to_triangular()
                     b[i * m + t] -= block2[t];
                 
                 std::memset(i_alpha, 0, sizeof(double) * height * m);
-                // set_block(i, alpha, block1);
             }
         }
     }
@@ -122,7 +128,7 @@ bool LinearSystem::blocked_matrix_to_triangular()
     {
         get_block(k, k, block1);
         std::memcpy(block2, b + k * m, sizeof(double) * l);
-        if (!naive_gauss_solve_block(block1, l, block2, w_perm))
+        if (!naive_gauss_solve_block(block1, l, block2, w_perm, l * original_matrix_norm * MACHINE_EPS))
             return 0;
         std::memcpy(b + k * m, block2, sizeof(double) * l);
     }

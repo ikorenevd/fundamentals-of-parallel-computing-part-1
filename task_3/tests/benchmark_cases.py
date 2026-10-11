@@ -102,8 +102,8 @@ def _write_matrix(path: Path, matrix: list[list[float]]) -> None:
 def _formula_expectation(n: int, s: int) -> str:
     if s == 3 and n == 1:
         return "unsolved"
-    # Hilbert matrices become threshold/rounding dependent at these sizes.
-    if s == 4 and n >= 10:
+    # At n>=12 the fixed pivot tolerance may reject a numerically singular system.
+    if s == 4 and n >= 12:
         return "any"
     return "solved"
 
@@ -151,7 +151,8 @@ def generate_cases(output_dir: Path, profile: str = "full") -> list[Case]:
         ("signed_diagonal_7", _diagonal(7, lambda i: (-1) ** i * (i + 1)), "solved"),
         ("scaled_small_5", _scaled(_dominant(5), 1e-10), "solved"),
         ("scaled_large_5", _scaled(_dominant(5), 1e100), "solved"),
-        ("tiny_diagonal_5", _diagonal(5, lambda i: (i + 1) * 1e-18), "unsolved"),
+        # A small common scale does not make a well-conditioned matrix singular.
+        ("tiny_diagonal_5", _diagonal(5, lambda i: (i + 1) * 1e-18), "solved"),
         ("extreme_scale_5", _scaled(_dominant(5), 1e200), "any"),
         ("symmetric_positive_6", _matrix(6, lambda i, j: 9 if i == j else 1 / (1 + abs(i - j))), "solved"),
         ("upper_triangular_5", _matrix(5, lambda i, j: i + 2 if i == j else (j - i) / 4 if j > i else 0), "solved"),

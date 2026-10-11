@@ -1,6 +1,7 @@
 #include "./block_ops.h"
 
 #include <cmath>
+#include <cfloat>
 #include <algorithm>
 #include <cstring>
 
@@ -37,26 +38,29 @@ double find_block_max(double* block, int m, int alpha, int& pivot_i, int& pivot_
     return abs_pivot;
 }
 
-double calculate_block_norm(const double* block, int m, double* vector_norms)
+double calculate_block_norm(const double* block, int m, double* vector_norms, int first)
 {
-    if (block == nullptr || m < 1 || vector_norms == nullptr)
+    if (block == nullptr || m < 1 || vector_norms == nullptr || first < 0 || first >= m)
         return HUGE_VAL;
-
     double max = 0.;
-    for (int i = 0; i < m; i++)
+    for (int i = first; i < m; i++)
     {
         double sum = 0.;
-        for (int j = 0; j < m; j++)
-            sum += std::fabs(block[i * m + j]);
-        if (sum > max)
-            max = sum;
+        for (int j = first; j < m; j++)
+        {
+            double value = std::fabs(block[i * m + j]);
+            if (!std::isfinite(value) || std::min(sum, value) > DBL_MAX - std::max(sum, value))
+                return HUGE_VAL;
+            sum += value;
+        }
+        max = std::max(max, sum);
     }
 
     return max;
 }
 
 // A = f × l, B = l × k, result = f × k.
-void matrix_multiplication(const double* A, const double* B, double* result, int f, int l, int k, double eps)
+void matrix_multiplication(const double* A, const double* B, double* result, int f, int l, int k)
 {
     int i = 0;
     for (; i + 2 < f; i += 3)
@@ -93,17 +97,17 @@ void matrix_multiplication(const double* A, const double* B, double* result, int
                 c02 += x0 * y2; c12 += x1 * y2; c22 += x2 * y2;
             }
 
-            r0[j]     = std::fabs(c00) < eps ? 0. : c00;
-            r0[j + 1] = std::fabs(c01) < eps ? 0. : c01;
-            r0[j + 2] = std::fabs(c02) < eps ? 0. : c02;
+            r0[j]     = c00;
+            r0[j + 1] = c01;
+            r0[j + 2] = c02;
 
-            r1[j]     = std::fabs(c10) < eps ? 0. : c10;
-            r1[j + 1] = std::fabs(c11) < eps ? 0. : c11;
-            r1[j + 2] = std::fabs(c12) < eps ? 0. : c12;
+            r1[j]     = c10;
+            r1[j + 1] = c11;
+            r1[j + 2] = c12;
 
-            r2[j]     = std::fabs(c20) < eps ? 0. : c20;
-            r2[j + 1] = std::fabs(c21) < eps ? 0. : c21;
-            r2[j + 2] = std::fabs(c22) < eps ? 0. : c22;
+            r2[j]     = c20;
+            r2[j + 1] = c21;
+            r2[j + 2] = c22;
         }
 
         // Остаточные столбцы 3x1.
@@ -119,9 +123,9 @@ void matrix_multiplication(const double* A, const double* B, double* result, int
                 c2 += a2[u] * b;
             }
 
-            r0[j] = std::fabs(c0) < eps ? 0. : c0;
-            r1[j] = std::fabs(c1) < eps ? 0. : c1;
-            r2[j] = std::fabs(c2) < eps ? 0. : c2;
+            r0[j] = c0;
+            r1[j] = c1;
+            r2[j] = c2;
         }
     }
 
@@ -146,9 +150,9 @@ void matrix_multiplication(const double* A, const double* B, double* result, int
                 c2 += x * b[2];
             }
 
-            r[j]     = std::fabs(c0) < eps ? 0. : c0;
-            r[j + 1] = std::fabs(c1) < eps ? 0. : c1;
-            r[j + 2] = std::fabs(c2) < eps ? 0. : c2;
+            r[j]     = c0;
+            r[j + 1] = c1;
+            r[j + 2] = c2;
         }
 
         // Остаточные элементы 1x1
@@ -157,13 +161,13 @@ void matrix_multiplication(const double* A, const double* B, double* result, int
             double sum = 0.;
             for (int u = 0; u < l; u++)
                 sum += a[u] * B[u * k + j];
-            r[j] = std::fabs(sum) < eps ? 0. : sum;
+            r[j] = sum;
         }
     }
 }
 
 // A = f × l, B = l × k, result -= A × B; result = f × k.
-void matrix_multiplication_subtract(const double* A, const double* B, double* result, int f, int l, int k, double eps)
+void matrix_multiplication_subtract(const double* A, const double* B, double* result, int f, int l, int k)
 {
     int i = 0;
     for (; i + 2 < f; i += 3)
@@ -201,25 +205,25 @@ void matrix_multiplication_subtract(const double* A, const double* B, double* re
             }
 
             c00       = r0[j] - c00;
-            r0[j]     = std::fabs(c00) < eps ? 0. : c00;
+            r0[j]     = c00;
             c01       = r0[j + 1] - c01;
-            r0[j + 1] = std::fabs(c01) < eps ? 0. : c01;
+            r0[j + 1] = c01;
             c02       = r0[j + 2] - c02;
-            r0[j + 2] = std::fabs(c02) < eps ? 0. : c02;
+            r0[j + 2] = c02;
 
             c10       = r1[j] - c10;
-            r1[j]     = std::fabs(c10) < eps ? 0. : c10;
+            r1[j]     = c10;
             c11       = r1[j + 1] - c11;
-            r1[j + 1] = std::fabs(c11) < eps ? 0. : c11;
+            r1[j + 1] = c11;
             c12       = r1[j + 2] - c12;
-            r1[j + 2] = std::fabs(c12) < eps ? 0. : c12;
+            r1[j + 2] = c12;
 
             c20       = r2[j] - c20;
-            r2[j]     = std::fabs(c20) < eps ? 0. : c20;
+            r2[j]     = c20;
             c21       = r2[j + 1] - c21;
-            r2[j + 1] = std::fabs(c21) < eps ? 0. : c21;
+            r2[j + 1] = c21;
             c22       = r2[j + 2] - c22;
-            r2[j + 2] = std::fabs(c22) < eps ? 0. : c22;
+            r2[j + 2] = c22;
         }
 
         // Остаточные столбцы 3x1.
@@ -236,11 +240,11 @@ void matrix_multiplication_subtract(const double* A, const double* B, double* re
             }
 
             c0    = r0[j] - c0;
-            r0[j] = std::fabs(c0) < eps ? 0. : c0;
+            r0[j] = c0;
             c1    = r1[j] - c1;
-            r1[j] = std::fabs(c1) < eps ? 0. : c1;
+            r1[j] = c1;
             c2    = r2[j] - c2;
-            r2[j] = std::fabs(c2) < eps ? 0. : c2;
+            r2[j] = c2;
         }
     }
 
@@ -266,11 +270,11 @@ void matrix_multiplication_subtract(const double* A, const double* B, double* re
             }
 
             c0       = r[j] - c0;
-            r[j]     = std::fabs(c0) < eps ? 0. : c0;
+            r[j]     = c0;
             c1       = r[j + 1] - c1;
-            r[j + 1] = std::fabs(c1) < eps ? 0. : c1;
+            r[j + 1] = c1;
             c2       = r[j + 2] - c2;
-            r[j + 2] = std::fabs(c2) < eps ? 0. : c2;
+            r[j + 2] = c2;
         }
 
         // Остаточные элементы 1x1
@@ -280,7 +284,7 @@ void matrix_multiplication_subtract(const double* A, const double* B, double* re
             for (int u = 0; u < l; u++)
                 sum += a[u] * B[u * k + j];
             sum  = r[j] - sum;
-            r[j] = std::fabs(sum) < eps ? 0. : sum;
+            r[j] = sum;
         }
     }
 }
@@ -289,11 +293,10 @@ void matrix_multiplication_subtract(const double* A, const double* B, double* re
 // inverse и block должны быть выделены m * m
 // block_perm m
 // при поиске обратной block изменяется, его нужно выделять с помощью get_block
-bool invert_block(double* block, double* inverse, int m, int* block_perm)
+bool invert_block(double* block, double* inverse, int m, int* block_perm, double pivot_eps)
 {
-    double eps = MACHINE_EPS * calculate_block_norm(block, m, inverse);
-    if (eps < MACHINE_EPS)
-        eps = MACHINE_EPS;
+    if (!std::isfinite(pivot_eps) || pivot_eps < 0.)
+        return 0;
 
     // делаем inverse единичной
     std::memset(inverse, 0, sizeof(double) * m * m);
@@ -310,7 +313,11 @@ bool invert_block(double* block, double* inverse, int m, int* block_perm)
         int pivot_j      = alpha;
         double abs_pivot = find_block_max(block, m, alpha, pivot_i, pivot_j);
 
-        if (abs_pivot < eps)
+        if (!std::isfinite(abs_pivot) || abs_pivot <= pivot_eps)
+            return 0;
+        double norm = calculate_block_norm(block, m, inverse, alpha);
+        double eps = MACHINE_EPS * norm;
+        if (!std::isfinite(eps))
             return 0;
 
         // меняем строки местами
@@ -342,7 +349,10 @@ bool invert_block(double* block, double* inverse, int m, int* block_perm)
             double coeff = block[i * m + alpha] / block[alpha * m + alpha];
 
             for (int j = alpha + 1; j < m; j++)
-                block[i * m + j]   -= coeff * block[alpha * m + j];
+            {
+                double value = block[i * m + j] - coeff * block[alpha * m + j];
+                block[i * m + j] = std::fabs(value) < eps ? 0. : value;
+            }
             
             for (int j = 0; j < m; j++)
                 inverse[i * m + j] -= coeff * inverse[alpha * m + j];
@@ -386,8 +396,13 @@ bool invert_block(double* block, double* inverse, int m, int* block_perm)
     return 1;
 }
 
-bool naive_gauss_solve_block(double* block, int m, double* b, int* block_perm)
+bool naive_gauss_solve_block(double* block, int m, double* b, int* block_perm, double pivot_eps)
 {
+    if (!std::isfinite(pivot_eps) || pivot_eps < 0.)
+        return 0;
+    double eps = 0.;
+    for (int i = 0; i < m; i++)
+        block_perm[i] = i;
     int alpha = 0;
 
     for (alpha = 0; alpha < m; alpha++)
@@ -395,9 +410,12 @@ bool naive_gauss_solve_block(double* block, int m, double* b, int* block_perm)
         int pivot_i = 0, pivot_j = 0;
         double abs_pivot = find_block_max(block, m, alpha, pivot_i, pivot_j);
 
-        // todo: нужно ли делать относительный эпсион(домножать на норму матрицы)
         // если главный элемент не подходит, то выходим
-        if (abs_pivot < MACHINE_EPS)
+        if (!std::isfinite(abs_pivot) || abs_pivot < pivot_eps)
+            return 0;
+        double norm = calculate_block_norm(block, m, b, alpha);
+        eps = (MACHINE_EPS) * norm;
+        if (!std::isfinite(eps))
             return 0;
 
         // физически меняем строки alpha и pivot_i
@@ -428,7 +446,10 @@ bool naive_gauss_solve_block(double* block, int m, double* b, int* block_perm)
             double coeff = block[i * m + alpha] / block[alpha * m + alpha];
 
             for (int j = alpha + 1; j < m; j++)
-                block[i * m + j] -= coeff * block[alpha * m + j];
+            {
+                double value = block[i * m + j] - coeff * block[alpha * m + j];
+                block[i * m + j] = std::fabs(value) < eps ? 0. : value;
+            }
 
             b[i]                -= coeff * b[alpha];
             block[i * m + alpha] = 0.;
@@ -439,7 +460,7 @@ bool naive_gauss_solve_block(double* block, int m, double* b, int* block_perm)
     for (int i = m - 1; i >= 0; i--)
     {
         double diagonal = block[i * m + i];
-        if (std::fabs(diagonal) < MACHINE_EPS)
+        if (std::fabs(diagonal) < pivot_eps)
             return 0;
 
         double rhs = b[i];
