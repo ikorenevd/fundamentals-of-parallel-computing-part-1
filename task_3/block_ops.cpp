@@ -38,9 +38,9 @@ double find_block_max(double* block, int m, int alpha, int& pivot_i, int& pivot_
     return abs_pivot;
 }
 
-double calculate_block_norm(const double* block, int m, double* vector_norms, int first)
+double calculate_block_norm(const double* block, int m, int first)
 {
-    if (block == nullptr || m < 1 || vector_norms == nullptr || first < 0 || first >= m)
+    if (block == nullptr || m < 1 || first < 0 || first >= m)
         return HUGE_VAL;
     double max = 0.;
     for (int i = first; i < m; i++)
@@ -315,7 +315,7 @@ bool invert_block(double* block, double* inverse, int m, int* block_perm, double
 
         if (!std::isfinite(abs_pivot) || abs_pivot <= pivot_eps)
             return 0;
-        double norm = calculate_block_norm(block, m, inverse, alpha);
+        double norm = calculate_block_norm(block, m, alpha);
         double eps = MACHINE_EPS * norm;
         if (!std::isfinite(eps))
             return 0;
@@ -413,7 +413,7 @@ bool naive_gauss_solve_block(double* block, int m, double* b, int* block_perm, d
         // если главный элемент не подходит, то выходим
         if (!std::isfinite(abs_pivot) || abs_pivot < pivot_eps)
             return 0;
-        double norm = calculate_block_norm(block, m, b, alpha);
+        double norm = calculate_block_norm(block, m, alpha);
         eps = (MACHINE_EPS) * norm;
         if (!std::isfinite(eps))
             return 0;

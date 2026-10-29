@@ -4,7 +4,7 @@
 #define MACHINE_EPS __DBL_EPSILON__
 
 // first исключает уже обработанные строки и столбцы из оценки нормы.
-double calculate_block_norm(const double* block, int m, double* vector_norms, int first = 0);
+double calculate_block_norm(const double* block, int m, int first = 0);
 void matrix_multiplication(const double* A, const double* B, double* result, int f, int l, int k);
 void matrix_multiplication_subtract(const double* A, const double* B, double* result, int f, int l, int k);
 // pivot_eps сохраняет исходный масштаб системы на всех шагах исключения.

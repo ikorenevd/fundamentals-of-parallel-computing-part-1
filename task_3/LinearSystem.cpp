@@ -104,10 +104,6 @@ bool LinearSystem::memory_alloc()
     if (block3 == nullptr)
         return 0;
 
-    block4 = (double*)std::malloc(sizeof(double) * m * m);
-    if (block4 == nullptr)
-        return 0;
-
     return 1;
 }
 
@@ -121,7 +117,6 @@ void LinearSystem::free_memory()
     std::free(block1);
     std::free(block2);
     std::free(block3);
-    std::free(block4);
 
     A = nullptr;
     b = nullptr;
@@ -131,7 +126,6 @@ void LinearSystem::free_memory()
     block1 = nullptr;
     block2 = nullptr;
     block3 = nullptr;
-    block4 = nullptr;
 }
 
 bool LinearSystem::init(int s, char* file_name)
@@ -140,7 +134,7 @@ bool LinearSystem::init(int s, char* file_name)
         || (s == 0 && file_name == nullptr)
         || A == nullptr || b == nullptr || solution == nullptr || perm == nullptr
         || w_perm == nullptr || block1 == nullptr || block2 == nullptr
-        || block3 == nullptr || block4 == nullptr)
+        || block3 == nullptr)
         return 0;
 
     bool flag = 0;

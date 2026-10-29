@@ -7,7 +7,7 @@
 #include <algorithm>
 #include <cstring>
 
-bool LinearSystem::finding_block_pivot(int alpha, int& pivot_i, int& pivot_j, double* ws_block1, double* ws_block2, double* ws_vector_norms, double* block_inverse)
+bool LinearSystem::finding_block_pivot(int alpha, int& pivot_i, int& pivot_j, double* ws_block1, double* ws_block2, double* block_inverse)
 {
     pivot_i = -1;
     pivot_j = -1;
@@ -25,7 +25,7 @@ bool LinearSystem::finding_block_pivot(int alpha, int& pivot_i, int& pivot_j, do
             if (!invert_block(ws_block1, inverse_candidate, m, w_perm, pivot_eps))
                 continue;
 
-            double inverse_norm = calculate_block_norm(inverse_candidate, m, ws_vector_norms);
+            double inverse_norm = calculate_block_norm(inverse_candidate, m);
             if (!std::isfinite(inverse_norm))
                 continue;
 
@@ -55,12 +55,12 @@ bool LinearSystem::finding_block_pivot(int alpha, int& pivot_i, int& pivot_j, do
 bool LinearSystem::blocked_matrix_to_triangular()
 {
     double column_eps = (MACHINE_EPS * MACHINE_EPS) * original_matrix_norm;
-    // используем block1 для обратного блока, block2 и block3 - для работы, block4 - тоже(в начале для вычисления норма, потом для свободных членов)
+    // используем block1 для обратного блока, block2 и block3 — для работы
     // block1 == pivot_inverse 
     for (int alpha = 0; alpha < k; alpha++)
     {
         int pivot_i, pivot_j;
-        if (!finding_block_pivot(alpha, pivot_i, pivot_j, block2, block3, block4, block1))
+        if (!finding_block_pivot(alpha, pivot_i, pivot_j, block2, block3, block1))
             return 0;
         
         swap_blocked_rows(alpha, pivot_i, alpha);
