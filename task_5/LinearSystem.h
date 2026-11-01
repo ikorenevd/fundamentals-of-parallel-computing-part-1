@@ -1,9 +1,6 @@
 #ifndef LINEAR_SYSTEM_H
 #define LINEAR_SYSTEM_H
 
-
-// todo: добавить set для хранения статуса задачи
-// нормальная обработка ошибок и более универсальных вывод
 class LinearSystem
 {
     public:

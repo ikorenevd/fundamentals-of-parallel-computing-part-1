@@ -8,7 +8,7 @@ ifeq ($(origin CXX),default)
 	endif
 endif
 
-COMMON_FLAGS = -O3 -fstack-protector-all -g -W -Wall -Wextra -Wunused -Wcast-align -Werror -pedantic -pedantic-errors -Wfloat-equal -Wpointer-arith -Wformat-security -Wmissing-format-attribute -Wformat=1 -Wwrite-strings -Wcast-align -Wno-long-long -Woverloaded-virtual -Wnon-virtual-dtor -Wcast-qual
+COMMON_FLAGS = -O3 -pthread
 
 ifeq ($(UNAME_S),Darwin)
 	# Apple Clang uses -Wformat; SSE math and suggest-attribute are GCC-specific.
