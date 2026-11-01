@@ -1,9 +1,9 @@
 #include "./residuals.h"
+#include "./block_ops.h"
 
 #include <cmath>
 #include <algorithm>
 
-// todo: заместо HUGE_VAL переписать с поправкой на вычиселия машинного эпсиолна
 void LinearSystem::compute_residuals(double& r1, double& r2) const
 {
     r1 = -1; r2 = -1;
@@ -35,6 +35,6 @@ void LinearSystem::compute_residuals(double& r1, double& r2) const
         error    += std::fabs(solution[row] - (row % 2 == 0 ? 1. : 0.));
     }
 
-    r1 = norm_b > 0. ? residual / norm_b : (residual <= 0. ? 0. : HUGE_VAL);
+    r1 = (norm_b > 0.) ? (residual / norm_b) : (residual <= 0. ? 0. : HUGE_VAL);
     r2 = error / (matrix_size / 2 + matrix_size % 2);
 }

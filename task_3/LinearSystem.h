@@ -10,6 +10,7 @@ class LinearSystem
         LinearSystem(int _matrix_size, int _block_size);
         ~LinearSystem();
 
+        // 1 - если успешно, 0 - если нет, ничего не инициализируем и памяти не касаемся
         bool memory_alloc();
         void free_memory();
 
@@ -23,12 +24,17 @@ class LinearSystem
         int solve();
         void compute_residuals(double& r1, double& r2) const;
 
+        // 1 - если успешно, 0 - если нет
         bool blocked_matrix_to_triangular();
         bool triangular_blocked_to_solution();
     private:
+        // 1 - если успешно, 0 - если нет
         bool init_matrix_from_formula(int s);
+        // 1 - если успешно, 0 - если нет
         bool init_matrix_from_file(char* file_name);
+        // 1 - если успешно, 0 - если нет
         bool init_perm();
+        // 1 - если успешно, 0 - если нет
         bool init_rhs();
 
         void get_block(int i, int j, double* dest) const;

@@ -3,21 +3,6 @@
 
 #include "./LinearSystem.h"
 
-// struct linear_system
-// {
-//     double* coeff_matrix    = 0;
-//     double* right_hand_side = 0;
-//     double* solution        = 0;
-//     int*    perm            = 0; // перестановки матричных столбцов
-
-//     int matrix_size      = 0;
-//     int matrix_size      = 0;
-//     int block_size       = 0;
-//     int full_block_count = 0;
-//     int remainder_size   = 0;
-//     int block_count      = 0;
-// };
-
 int main(int argc, char** argv)
 {
     int task = 11;
@@ -39,21 +24,19 @@ int main(int argc, char** argv)
     if (argc == 6)
         file_name = argv[5];
 
+    // проверяем на корректность
     if ((n < 1 || m < 1 || r < 0)
         || (s > 4)
         || (s == 0 && file_name == nullptr)
         || (argc == 5 && s < 0)
-        || (argc == 6 && s != 0)
-    )
+        || (argc == 6 && s != 0))
     {
         std::fprintf(stderr, "Wrong input\n");
         return 1;
     }
 
-    int block_size = m > n ? n : m;
-
     // создание системы
-    LinearSystem system(n, block_size);
+    LinearSystem system(n, m);
 
     // выделение памяти
     if (!system.memory_alloc())

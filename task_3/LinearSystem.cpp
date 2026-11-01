@@ -51,14 +51,11 @@ namespace
 
 LinearSystem::LinearSystem(int _matrix_size, int _block_size)
 {
-    if (_matrix_size < 1 || _block_size < 1 || _block_size > _matrix_size)
-        return;
-
-    matrix_size = _matrix_size;
-    block_size = _block_size;
+    matrix_size      = _matrix_size;
+    block_size       = std::min(_matrix_size, _block_size);
     full_block_count = matrix_size / block_size;
-    remainder_size = matrix_size % block_size;
-    block_count = full_block_count + (remainder_size != 0);
+    remainder_size   = matrix_size % block_size;
+    block_count      = full_block_count + (remainder_size != 0);
 }
 
 LinearSystem::~LinearSystem()
@@ -133,8 +130,7 @@ bool LinearSystem::init(int s, char* file_name)
     if (matrix_size < 1 || block_size < 1 || block_size > matrix_size || matrix_size > INT_MAX / matrix_size || s < 0 || s > 4
         || (s == 0 && file_name == nullptr)
         || coeff_matrix == nullptr || right_hand_side == nullptr || solution == nullptr || perm == nullptr
-        || w_perm == nullptr || block1 == nullptr || block2 == nullptr
-        || block3 == nullptr)
+        || w_perm == nullptr || block1 == nullptr || block2 == nullptr || block3 == nullptr)
         return 0;
 
     bool flag = 0;
@@ -147,7 +143,8 @@ bool LinearSystem::init(int s, char* file_name)
     if (!flag)
         return 0;
 
-    if (!std::isfinite((original_matrix_norm = get_matrix_norm())))
+    original_matrix_norm = get_matrix_norm();
+    if (!std::isfinite(original_matrix_norm))
         return 0;
 
     flag = init_rhs();
