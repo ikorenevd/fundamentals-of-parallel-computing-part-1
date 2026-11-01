@@ -7,7 +7,7 @@
 class LinearSystem
 {
     public:
-        LinearSystem(int n, int m);
+        LinearSystem(int _matrix_size, int _block_size);
         ~LinearSystem();
 
         bool memory_alloc();
@@ -43,22 +43,21 @@ class LinearSystem
 
         double* get_block_address(int i, int j) const;
     private:
-        double* A          = nullptr;
-        double* b          = nullptr;
-        double* solution   = nullptr;
-        int*    perm       = nullptr; // перестановки матричных столбцов
-
+        double* coeff_matrix    = 0;
+        double* right_hand_side = 0;
+        double* solution        = 0;
+        int*    perm            = 0; // перестановки матричных столбцов
         
         int* w_perm    = nullptr; // нужен для перестановок внутри обращаемого блока 
         double* block1 = nullptr;
         double* block2 = nullptr;
         double* block3 = nullptr;
 
-        int n = 0;
-        int m = 0;
-        int k = 0;
-        int l = 0;
-        int block_count = 0;
+        int matrix_size      = 0;
+        int block_size       = 0;
+        int full_block_count = 0;
+        int remainder_size   = 0;
+        int block_count      = 0;
 
         double original_matrix_norm = 0.;
 };

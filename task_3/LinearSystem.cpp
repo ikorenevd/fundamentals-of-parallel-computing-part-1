@@ -49,16 +49,16 @@ namespace
 
 }
 
-LinearSystem::LinearSystem(int _n, int _m)
+LinearSystem::LinearSystem(int _matrix_size, int _block_size)
 {
-    if (_n < 1 || _m < 1 || _m > _n)
+    if (_matrix_size < 1 || _block_size < 1 || _block_size > _matrix_size)
         return;
 
-    n = _n;
-    m = _m;
-    k = n / m;
-    l = n % m;
-    block_count = k + (l != 0);
+    matrix_size = _matrix_size;
+    block_size = _block_size;
+    full_block_count = matrix_size / block_size;
+    remainder_size = matrix_size % block_size;
+    block_count = full_block_count + (remainder_size != 0);
 }
 
 LinearSystem::~LinearSystem()
@@ -68,39 +68,39 @@ LinearSystem::~LinearSystem()
 
 bool LinearSystem::memory_alloc()
 {
-    A = (double*)std::malloc(n * n * sizeof(double));
-    if (A == nullptr)
+    coeff_matrix = (double*)std::malloc(matrix_size * matrix_size * sizeof(double));
+    if (coeff_matrix == nullptr)
         return 0;
-    std::memset(A, 0, sizeof(double) * n * n);
+    std::memset(coeff_matrix, 0, sizeof(double) * matrix_size * matrix_size);
 
-    b = (double*)std::malloc(n * sizeof(double));
-    if (b == nullptr)
+    right_hand_side = (double*)std::malloc(matrix_size * sizeof(double));
+    if (right_hand_side == nullptr)
         return 0;
-    std::memset(b, 0, sizeof(double) * n);
+    std::memset(right_hand_side, 0, sizeof(double) * matrix_size);
 
-    solution = (double*)std::malloc(sizeof(double) * n);
+    solution = (double*)std::malloc(sizeof(double) * matrix_size);
     if (solution == nullptr)
         return 0;
-    std::memset(solution, 0, sizeof(double) * n);
+    std::memset(solution, 0, sizeof(double) * matrix_size);
 
-    perm = (int*)std::malloc(sizeof(int) * k);
+    perm = (int*)std::malloc(sizeof(int) * full_block_count);
     if (perm == nullptr)
         return 0;
-    std::memset(perm, 0, sizeof(int) * k);
+    std::memset(perm, 0, sizeof(int) * full_block_count);
 
-    w_perm = (int*)std::malloc(sizeof(int) * m);
+    w_perm = (int*)std::malloc(sizeof(int) * block_size);
     if (w_perm == nullptr)
         return 0;
 
-    block1 = (double*)std::malloc(sizeof(double) * m * m);
+    block1 = (double*)std::malloc(sizeof(double) * block_size * block_size);
     if (block1 == nullptr)
         return 0;
     
-    block2 = (double*)std::malloc(sizeof(double) * m * m);
+    block2 = (double*)std::malloc(sizeof(double) * block_size * block_size);
     if (block2 == nullptr)
         return 0;
 
-    block3 = (double*)std::malloc(sizeof(double) * m * m);
+    block3 = (double*)std::malloc(sizeof(double) * block_size * block_size);
     if (block3 == nullptr)
         return 0;
 
@@ -109,8 +109,8 @@ bool LinearSystem::memory_alloc()
 
 void LinearSystem::free_memory()
 {
-    std::free(A);
-    std::free(b);
+    std::free(coeff_matrix);
+    std::free(right_hand_side);
     std::free(solution);
     std::free(perm);
     std::free(w_perm);
@@ -118,8 +118,8 @@ void LinearSystem::free_memory()
     std::free(block2);
     std::free(block3);
 
-    A = nullptr;
-    b = nullptr;
+    coeff_matrix = nullptr;
+    right_hand_side = nullptr;
     solution = nullptr;
     perm = nullptr;
     w_perm = nullptr;
@@ -130,9 +130,9 @@ void LinearSystem::free_memory()
 
 bool LinearSystem::init(int s, char* file_name)
 {
-    if (n < 1 || m < 1 || m > n || n > INT_MAX / n || s < 0 || s > 4
+    if (matrix_size < 1 || block_size < 1 || block_size > matrix_size || matrix_size > INT_MAX / matrix_size || s < 0 || s > 4
         || (s == 0 && file_name == nullptr)
-        || A == nullptr || b == nullptr || solution == nullptr || perm == nullptr
+        || coeff_matrix == nullptr || right_hand_side == nullptr || solution == nullptr || perm == nullptr
         || w_perm == nullptr || block1 == nullptr || block2 == nullptr
         || block3 == nullptr)
         return 0;
@@ -162,18 +162,18 @@ bool LinearSystem::init(int s, char* file_name)
 
 bool LinearSystem::init_matrix_from_formula(int s)
 {
-    double* block = A;
-    for (int row = 0; row < n; )
+    double* block = coeff_matrix;
+    for (int row = 0; row < matrix_size; )
     {
-        int height = std::min(m, n - row);
+        int height = std::min(block_size, matrix_size - row);
 
-        for (int col = 0; col < n; )
+        for (int col = 0; col < matrix_size; )
         {
-            int width = std::min(m, n - col);
+            int width = std::min(block_size, matrix_size - col);
 
             for (int p = 0; p < height; p++)
                 for (int q = 0; q < width; q++)
-                    *block++ = f(n, s, row + p + 1, col + q + 1);
+                    *block++ = f(matrix_size, s, row + p + 1, col + q + 1);
 
             col += width;
         }
@@ -191,10 +191,10 @@ bool LinearSystem::init_matrix_from_file(char* file_name)
     if (file == nullptr)
         return 0;
 
-    for (int i = 0; i < n; i++)
-        for (int j = 0; j < n; j++)
+    for (int i = 0; i < matrix_size; i++)
+        for (int j = 0; j < matrix_size; j++)
         {
-            double* value = A + matrix_offset(n, m, i, j);
+            double* value = coeff_matrix + matrix_offset(matrix_size, block_size, i, j);
 
             if (std::fscanf(file, "%lf", value) != 1 || std::isnan(*value) || std::isinf(*value))
             {
@@ -212,24 +212,24 @@ bool LinearSystem::init_matrix_from_file(char* file_name)
 
 bool LinearSystem::init_rhs()
 {
-    if (b == nullptr)
+    if (right_hand_side == nullptr)
         return 0;
 
-    const double* block = A;
+    const double* block = coeff_matrix;
 
-    for (int row = 0; row < n; )
+    for (int row = 0; row < matrix_size; )
     {
-        int height = std::min(m, n - row);
+        int height = std::min(block_size, matrix_size - row);
 
         for (int p = 0; p < height; p++)
-            b[row + p] = 0.;
+            right_hand_side[row + p] = 0.;
 
-        for (int col = 0; col < n; )
+        for (int col = 0; col < matrix_size; )
         {
-            int width = std::min(m, n - col);
+            int width = std::min(block_size, matrix_size - col);
             for (int p = 0; p < height; p++)
             {
-                double sum = b[row + p];
+                double sum = right_hand_side[row + p];
                 // столбцы с чётным глобальным индексом
                 for (int q = col % 2; q < width; q += 2)
                 {
@@ -246,7 +246,7 @@ bool LinearSystem::init_rhs()
                     }
                     sum += value;
                 }
-                b[row + p] = sum;
+                right_hand_side[row + p] = sum;
                 block     += width;
             }
             col += width;
@@ -258,44 +258,44 @@ bool LinearSystem::init_rhs()
 
 bool LinearSystem::init_perm()
 {
-    if (m < 1 || n < m || perm == nullptr)
+    if (block_size < 1 || matrix_size < block_size || perm == nullptr)
         return 0;
-    for (int j = 0; j < k; j++)
+    for (int j = 0; j < full_block_count; j++)
         perm[j] = j;
     return 1;
 }
 
 void LinearSystem::print_matrix(int r) const
 {
-    ::print_matrix(n, n, m, A, r);
+    ::print_matrix(matrix_size, matrix_size, block_size, coeff_matrix, r);
 }
 
 void LinearSystem::print_rhs(int r) const
 {
-    ::print_matrix(1, n, m, b, r);
+    ::print_matrix(1, matrix_size, block_size, right_hand_side, r);
 }
 
 void LinearSystem::print_solution(int r) const
 {
-    ::print_matrix(1, n, m, solution, r);
+    ::print_matrix(1, matrix_size, block_size, solution, r);
 }
 
 void LinearSystem::get_block(int i, int j, double* dest) const
 {
-    int height = std::min(m, n - i * m);
-    int width  = std::min(m, n - j * m);
-    int offset = i * m * n + j * m * height;
+    int height = std::min(block_size, matrix_size - i * block_size);
+    int width  = std::min(block_size, matrix_size - j * block_size);
+    int offset = i * block_size * matrix_size + j * block_size * height;
 
-    std::memcpy(dest, A + offset, height * width * sizeof(double));
+    std::memcpy(dest, coeff_matrix + offset, height * width * sizeof(double));
 }
 
 void LinearSystem::set_block(int i, int j, const double* src)
 {
-    int height = std::min(m, n - i * m);
-    int width  = std::min(m, n - j * m);
-    int offset = i * m * n + j * m * height;
+    int height = std::min(block_size, matrix_size - i * block_size);
+    int width  = std::min(block_size, matrix_size - j * block_size);
+    int offset = i * block_size * matrix_size + j * block_size * height;
 
-    std::memcpy(A + offset, src, height * width * sizeof(double));
+    std::memcpy(coeff_matrix + offset, src, height * width * sizeof(double));
 }
 
 double LinearSystem::get_matrix_norm() const
@@ -304,7 +304,7 @@ double LinearSystem::get_matrix_norm() const
 
     for (int i = 0; i < block_count; i++)
     {
-        int height = std::min(m, n - i * m);
+        int height = std::min(block_size, matrix_size - i * block_size);
 
         for (int row = 0; row < height; row++)
         {
@@ -312,8 +312,8 @@ double LinearSystem::get_matrix_norm() const
 
             for (int j = 0; j < block_count; j++)
             {
-                int width           = std::min(m, n - j * m);
-                const double* block = A + i * m * n + j * m * height;
+                int width           = std::min(block_size, matrix_size - j * block_size);
+                const double* block = coeff_matrix + i * block_size * matrix_size + j * block_size * height;
                 for (int col = 0; col < width; col++)
                 {
                     double value = std::fabs(block[row * width + col]);
@@ -337,10 +337,12 @@ void LinearSystem::swap_blocked_rows(int i, int j, int first_column)
     if (i == j)
         return;
 
-    std::swap_ranges(A + i * n * m + first_column * m * m,
-                     A + (i + 1) * n * m,
-                     A + j * n * m + first_column * m * m);
-    std::swap_ranges(b + i * m, b + (i + 1) * m, b + j * m);
+    std::swap_ranges(coeff_matrix + i * matrix_size * block_size + first_column * block_size * block_size,
+                     coeff_matrix + (i + 1) * matrix_size * block_size,
+                     coeff_matrix + j * matrix_size * block_size + first_column * block_size * block_size);
+    std::swap_ranges(right_hand_side + i * block_size,
+                     right_hand_side + (i + 1) * block_size, 
+                     right_hand_side + j * block_size);
 }
 
 void LinearSystem::swap_blocked_columns(int i, int j)
@@ -349,17 +351,17 @@ void LinearSystem::swap_blocked_columns(int i, int j)
         return;
     
     // меняем квадратные блоки
-    for (int row = 0; row < k; row++)
-        std::swap_ranges(A + row * n * m + i * m * m,
-                         A + row * n * m + (i + 1) * m * m,
-                         A + row * n * m + j * m * m);
+    for (int row = 0; row < full_block_count; row++)
+        std::swap_ranges(coeff_matrix + row * matrix_size * block_size + i * block_size * block_size,
+                         coeff_matrix + row * matrix_size * block_size + (i + 1) * block_size * block_size,
+                         coeff_matrix + row * matrix_size * block_size + j * block_size * block_size);
 
-    if (l != 0)
+    if (remainder_size != 0)
     {
-        double* tail = A + (k) * m * n;
-        std::swap_ranges(tail + i * m * l,
-                         tail + (i + 1) * m * l,
-                         tail + j * m * l);
+        double* tail = coeff_matrix + (full_block_count) * block_size * matrix_size;
+        std::swap_ranges(tail + i * block_size * remainder_size,
+                         tail + (i + 1) * block_size * remainder_size,
+                         tail + j * block_size * remainder_size);
     }
 
     std::swap(perm[i], perm[j]);
@@ -367,6 +369,6 @@ void LinearSystem::swap_blocked_columns(int i, int j)
 
 double* LinearSystem::get_block_address(int i, int j) const
 {
-    int height = std::min(m, n - i * m);
-    return (A + i * m * n + j * m * height);
+    int height = std::min(block_size, matrix_size - i * block_size);
+    return (coeff_matrix + i * block_size * matrix_size + j * block_size * height);
 }
