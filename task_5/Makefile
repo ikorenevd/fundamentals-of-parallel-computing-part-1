@@ -27,8 +27,8 @@ endif
 
 .PHONY: clean memcheck
 
-SOURCES = main.cpp LinearSystem.cpp solver.cpp block_ops.cpp matrix_io.cpp residuals.cpp
-HEADERS = LinearSystem.h solver.h block_ops.h matrix_io.h residuals.h Args.h pthread_barrier_t.h
+SOURCES = *.cpp
+HEADERS = *.h
 
 a.out: $(SOURCES) $(HEADERS) Makefile
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(FPFLAGS) $(SOURCES) $(LDFLAGS) $(LDLIBS) -o $@

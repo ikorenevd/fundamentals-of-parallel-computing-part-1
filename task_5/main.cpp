@@ -17,13 +17,68 @@
     #include "./pthread_barrier_t.h"
 #endif
 
+#define MACHINE_EPS __DBL_EPSILON__
+
 #ifdef __linux__
     #include <sched.h>
     #include <sys/sysinfo.h>
 #endif
-#include "./LinearSystem.h"
 #include "./Args.h"
 #include "./matrix_io.h"
+#include "./block_ops.h"
+
+
+void get_block(const double* coeff_matrix, int matrix_size, int block_size, int i, int j, double* dest)
+{
+    int height = std::min(block_size, matrix_size - i * block_size);
+    int width  = std::min(block_size, matrix_size - j * block_size);
+    int offset = i * block_size * matrix_size + j * block_size * height;
+
+    std::memcpy(dest, coeff_matrix + offset, height * width * sizeof(double));
+}
+
+void set_block(double* coeff_matrix, int matrix_size, int block_size, int i, int j, const double* src)
+{
+    int height = std::min(block_size, matrix_size - i * block_size);
+    int width  = std::min(block_size, matrix_size - j * block_size);
+    int offset = i * block_size * matrix_size + j * block_size * height;
+
+    std::memcpy(coeff_matrix + offset, src, height * width * sizeof(double));
+}
+    
+
+double get_matrix_norm(double* coeff_matrix, int matrix_size, int block_size, int block_count)
+{
+    double norm = 0.;
+
+    for (int j = 0; j < block_count; j++)
+    {
+        int width = std::min(block_size, matrix_size - j * block_size);
+
+        for (int col = 0; col < width; col++)
+        {
+            double sum = 0.;
+
+            for (int i = 0; i < block_count; i++)
+            {
+                int height          = std::min(block_size, matrix_size - i * block_size);
+                const double* block = coeff_matrix + i * block_size * matrix_size + j * block_size * height;
+                for (int row = 0; row < height; row++)
+                {
+                    double value = std::fabs(block[row * width + col]);
+                    if (std::min(sum, value) > DBL_MAX - std::max(sum, value))
+                        return HUGE_VAL; // return infinity
+                    sum += value;
+                }
+            }
+
+            if (sum > norm)
+                norm = sum;
+        }
+    }
+
+    return norm;
+}
 
 inline int matrix_offset(int n, int m, int row, int col)
 {
@@ -154,6 +209,65 @@ bool init_right_hand_size(double* coeff_matrix, double* right_hand_side, int mat
     return 1;
 }
 
+bool finding_block_pivot(Args* args, int alpha)
+{
+    const double* coeff_matrix = args->coeff_matrix;
+    int matrix_size = args->matrix_size;
+    int block_size = args->block_size;
+    int full_blocks_count = args->full_blocks_count;
+    
+    int thread_number = args->thread_number;
+    int threads_count = args->threads_count;
+
+    double original_matrix_norm = *args->original_matrix_norm;
+
+    args->best_block_i = -1;
+    args->best_block_j = -1;
+    args->best_block_norm = HUGE_VAL;
+
+    double pivot_eps = (matrix_size * MACHINE_EPS) * original_matrix_norm;
+    double* inverse_candidate = args->block1;
+    double* ws_block1 = args->block2;
+    int* w_perm = args->perm;
+    double* inverse_best = args->block_inverse;
+
+    int start_row = alpha + (thread_number - alpha % threads_count + threads_count) % threads_count;
+    for (int i = start_row; i < full_blocks_count; i += threads_count)
+    {
+        for (int j = alpha; j < full_blocks_count; j++)
+        {
+            get_block(coeff_matrix, matrix_size, block_size, i, j, ws_block1);
+            if (!invert_block(ws_block1, inverse_candidate, block_size, w_perm, pivot_eps))
+                continue;
+
+            double inverse_norm = calculate_block_norm(inverse_candidate, block_size);
+            if (!std::isfinite(inverse_norm))
+                continue;
+
+            // Первый подходящий блок задаёт начальную норму для сравнения.
+            if (args->best_block_i == -1 || inverse_norm < args->best_block_norm)
+            {
+                args->best_block_i = i;
+                args->best_block_j = j;
+                args->best_block_norm = inverse_norm;
+                std::swap(inverse_best, inverse_candidate);
+            }
+        }
+    }
+
+    if (args->best_block_i == -1)
+        return 0;
+
+    double eps = MACHINE_EPS * MACHINE_EPS * args->best_block_norm;
+    for (int t = 0; t < block_size * block_size; t++)
+    {
+        double value = inverse_best[t];
+        args->block_inverse[t] = std::fabs(value) < eps ? 0. : value;
+    }
+
+    return 1;
+}
+
 void* thread_function(void* a)
 {
     Args* args = (Args*)a;
@@ -197,7 +311,7 @@ void* thread_function(void* a)
     {
         // std::fprintf(stderr, "thread_number: %d, blocked_row: %d, blocks_count: %d\n", thread_number, blocked_row, blocks_count);
         int height = std::min(block_size, matrix_size - blocked_row * block_size);
-        std::memset(coeff_matrix + blocked_row * block_size * matrix_size, thread_number + 1, height * matrix_size * sizeof(double));
+        std::memset(coeff_matrix + blocked_row * block_size * matrix_size, 0, height * matrix_size * sizeof(double));
         std::memset(right_hand_side + blocked_row * block_size, 0, height * sizeof(double));
         std::memset(solution + blocked_row * block_size, 0, height * sizeof(double));
     }
@@ -214,8 +328,9 @@ void* thread_function(void* a)
     args->block3          = new double[block_size * block_size];
     args->perm            = new int[block_size];
     args->buffer          = new double[block_size];
+    args->block_inverse = new double[block_size * block_size];
     args->mem_alloc = args->pivot_block_row && args->block1 && args->block2
-        && args->block3 && args->perm && args->buffer;
+        && args->block3 && args->perm && args->buffer && args->block_inverse;
     
     // барьер
     pthread_barrier_wait(barrier);
@@ -255,6 +370,8 @@ void* thread_function(void* a)
     // todo: проверка на корректность
     init_right_hand_size(coeff_matrix, right_hand_side, matrix_size, block_size, blocks_count, threads_count, thread_number);
 
+    pthread_barrier_wait(barrier);
+
     if (thread_number == 0)
     {
         print_matrix(matrix_size, matrix_size, block_size, coeff_matrix, args->r, "Coefficient Matrix:\n");
@@ -263,6 +380,54 @@ void* thread_function(void* a)
     
     pthread_barrier_wait(barrier);
 
+    // todo: начать считать время работы
+
+    // прмяой ход
+    {
+        for (int alpha = 0; alpha < full_blocks_count; alpha++)
+        {
+            // каждый поток ищет кандидаат на главный блок в своих строках
+
+            // барьер
+
+            // нулевой поток сравнивает кандидаты по норме обратной матрицы
+
+            // барьер // мб убрать этот барьер и пусть это делает один поток???
+
+            // поток с лучшим вариантом записывает его в общую память (лежит в args)
+            
+            // барьер
+            
+            // нулевой поток меняет блочные строки и соотв. чанки правой части
+
+            // барьер
+
+            // каждый поток меняет блочные столбцы внутри себя
+            // нулевой поток запоминает перестановки
+
+            // барьер
+
+            // потоком, где теперь расположен главный элемент нормируется главная строка
+
+            // барьер
+
+            // каждый поток ее копирует в свою память
+            // обновляются собственные строки
+
+        }
+        // барьер // этот можно убрать
+
+        // если есть неквадратные блоки, то соотв. поток решает оставшуюся систему наивным методом гаусса
+
+        // барьер
+    }
+
+    // обратный ход
+    {
+        
+    }
+
+    // todo: закончить время работы
 
     return 0;
 }

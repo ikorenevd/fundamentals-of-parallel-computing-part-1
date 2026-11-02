@@ -16,6 +16,8 @@ public:
     double* solution        = 0;
     int*    block_col_perm  = 0; // перестановки матричных столбцов
     double* pivot_block_inverse = 0;
+    // Номер победившего потока хранится в Args нулевого потока.
+    int pivot_thread = -1;
 
     int matrix_size       = 0;
     int block_size        = 0;
@@ -33,9 +35,10 @@ public:
     double* buffer = 0;
 
     // своя память необходимая для поиска лучшего обратного блока
+    double* block_inverse = 0;
     double best_block_norm = 0.;
-    int    best_block_i = 0;
-    int    best_block_j = 0;
+    int    best_block_i = -1;
+    int    best_block_j = -1;
 
     // информация о потоках и ошибках
     int threads_count = 0;
