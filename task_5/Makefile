@@ -28,7 +28,7 @@ endif
 .PHONY: clean memcheck
 
 SOURCES = main.cpp LinearSystem.cpp solver.cpp block_ops.cpp matrix_io.cpp residuals.cpp
-HEADERS = LinearSystem.h solver.h block_ops.h matrix_io.h residuals.h
+HEADERS = LinearSystem.h solver.h block_ops.h matrix_io.h residuals.h Args.h pthread_barrier_t.h
 
 a.out: $(SOURCES) $(HEADERS) Makefile
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(FPFLAGS) $(SOURCES) $(LDFLAGS) $(LDLIBS) -o $@
@@ -39,18 +39,18 @@ clean:
 memcheck: $(SOURCES) $(HEADERS) Makefile
 	mkdir -p build
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(FPFLAGS) -O3 -fsanitize=address -fno-omit-frame-pointer $(SOURCES) $(LDFLAGS) $(LDLIBS) -o build/memcheck
-	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 40 2 4 3
-	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 1340 130 10 1
-	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 20 10 10 1
-	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 21 10 10 1
-	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 1000 7 10 1
-	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 201 40 10 1
-	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 2000 20 10 1
-	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 2000 1000 10 1
-	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 1500 142 10 3
-	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 1660 300 10 2
-	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 100 23 10 4
-	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 200 2 10 4
+	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 40 2 1 4 3
+	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 1340 12 1 10 1
+	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 20 10 1 10 1
+	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 21 10 1 10 1
+	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 1000 7 1 10 1
+	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 201 40 1 10 1
+	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 2000 20 1 10 1
+	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 2000 1000 1 10 1
+	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 1500 142 1 10 3
+	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 1660 300 1 10 2
+	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 100 23 1 10 4
+	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 200 2 1 10 4
 
 zip:
 	zip Korenev_ID.zip *.cpp *.h Makefile

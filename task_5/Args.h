@@ -7,10 +7,6 @@
     #include "./pthread_barrier_t.h"
 #endif
 
-#ifdef __linux__
-    #include <pthread_barrier.h>
-#endif
-
 class Args
 {
 public:
@@ -21,11 +17,11 @@ public:
     int*    block_col_perm  = 0; // перестановки матричных столбцов
     double* pivot_block_inverse = 0;
 
-    int matrix_size      = 0;
-    int block_size       = 0;
-    int full_block_count = 0;
-    int remainder_size   = 0;
-    int block_count      = 0;
+    int matrix_size       = 0;
+    int block_size        = 0;
+    int full_blocks_count = 0;
+    int remainder_size    = 0;
+    int blocks_count      = 0;
     double* original_matrix_norm = 0;
 
     // локальные блоки - для каждого потока свои - своя память
@@ -49,6 +45,11 @@ public:
     // инфорация о времени
     double t1 = 0.;
     double t2 = 0.;
+
+    // информация о запуске
+    int r           = 0;
+    int s           = 0;
+    char* file_name = 0;
 
     // баррьер
     pthread_barrier_t* barrier;

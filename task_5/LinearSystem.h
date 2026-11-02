@@ -26,13 +26,13 @@ class LinearSystem
         bool triangular_blocked_to_solution();
     private:
         // 1 - если успешно, 0 - если нет
-        bool init_matrix_from_formula(int s);
+        // bool init_matrix_from_formula(int s);
         // 1 - если успешно, 0 - если нет
-        bool init_matrix_from_file(char* file_name);
+        // bool init_matrix_from_file(char* file_name);
         // 1 - если успешно, 0 - если нет
         bool init_perm();
         // 1 - если успешно, 0 - если нет
-        bool init_rhs();
+        // bool init_rhs();
 
         void get_block(int i, int j, double* dest) const;
         void set_block(int i, int j, const double* src);

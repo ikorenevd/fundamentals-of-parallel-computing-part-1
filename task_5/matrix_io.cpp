@@ -2,7 +2,7 @@
 
 #include <cstdio>
 
-void print_matrix(int rows, int cols, int m, const double* data, int r)
+void print_matrix(int rows, int cols, int m, const double* data, int r, const char* pre_message)
 {
     if (rows < 1 || cols < 1 || m < 1 || r < 1 || data == nullptr)
         return;
@@ -10,6 +10,9 @@ void print_matrix(int rows, int cols, int m, const double* data, int r)
     int printed_rows = r < rows ? r : rows;
     int printed_cols = r < cols ? r : cols;
     
+    if ((pre_message != 0) && (printed_rows != 0 || printed_cols != 0))
+        std::fprintf(stdout, "%s", pre_message);
+
     for (int row = 0; row < printed_rows; row++)
     {
         int row_start = row / m * m;
@@ -23,7 +26,7 @@ void print_matrix(int rows, int cols, int m, const double* data, int r)
                 + col * height + (row - row_start) * width;
 
             for (int q = 0; q < count; q++)
-                std::printf(" %10.3e", values[q]);
+                std::fprintf(stdout, " %10.3e", values[q]);
 
             col += count;
         }

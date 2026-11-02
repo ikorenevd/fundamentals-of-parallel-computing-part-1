@@ -12,30 +12,6 @@
 
 namespace
 {
-    inline double f(int n, int s, int i, int j)
-    {
-        int t;
-        switch (s)
-        {
-        case 1:
-            t = i > j ? i : j;
-            return ((double)(n - t + 1));
-            break;
-        case 2:
-            t = i > j ? i : j;
-            return (double)t;
-            break;
-        case 3:
-            t = i - j;
-            return (double)(t >= 0 ? t : -t);
-            break;
-        case 4:
-            return (double)1 / (double)(i + j - 1);
-            break;
-        }
-        return 0;
-    }
-
     inline int matrix_offset(int n, int m, int row, int col)
     {
         int i = row / m;
@@ -135,10 +111,10 @@ bool LinearSystem::init(int s, char* file_name)
 
     bool flag = 0;
     
-    if (s == 0)
-        flag = init_matrix_from_file(file_name);
-    else
-        flag = init_matrix_from_formula(s);
+    // if (s == 0)
+    //     flag = init_matrix_from_file(file_name);
+    // else
+    //     flag = init_matrix_from_formula(s);
 
     if (!flag)
         return 0;
@@ -147,7 +123,7 @@ bool LinearSystem::init(int s, char* file_name)
     if (!std::isfinite(original_matrix_norm))
         return 0;
 
-    flag = init_rhs();
+    // flag = init_rhs();
 
     if (!flag)
         return 0;
@@ -155,102 +131,6 @@ bool LinearSystem::init(int s, char* file_name)
     flag = init_perm();
 
     return flag;
-}
-
-bool LinearSystem::init_matrix_from_formula(int s)
-{
-    double* block = coeff_matrix;
-    for (int row = 0; row < matrix_size; )
-    {
-        int height = std::min(block_size, matrix_size - row);
-
-        for (int col = 0; col < matrix_size; )
-        {
-            int width = std::min(block_size, matrix_size - col);
-
-            for (int p = 0; p < height; p++)
-                for (int q = 0; q < width; q++)
-                    *block++ = f(matrix_size, s, row + p + 1, col + q + 1);
-
-            col += width;
-        }
-        row += height;
-    }
-    return 1;
-}
-
-bool LinearSystem::init_matrix_from_file(char* file_name)
-{
-    if (file_name == nullptr)
-        return 0;
-
-    std::FILE* file = std::fopen(file_name, "r");
-    if (file == nullptr)
-        return 0;
-
-    for (int i = 0; i < matrix_size; i++)
-        for (int j = 0; j < matrix_size; j++)
-        {
-            double* value = coeff_matrix + matrix_offset(matrix_size, block_size, i, j);
-
-            if (std::fscanf(file, "%lf", value) != 1 || std::isnan(*value) || std::isinf(*value))
-            {
-                std::fclose(file);
-                return 0;
-            }
-        }
-
-    char c;
-    bool flag = std::fscanf(file, " %c", &c) == EOF && !std::ferror(file);
-
-    std::fclose(file);
-    return flag;
-}
-
-bool LinearSystem::init_rhs()
-{
-    if (right_hand_side == nullptr)
-        return 0;
-
-    const double* block = coeff_matrix;
-
-    for (int row = 0; row < matrix_size; )
-    {
-        int height = std::min(block_size, matrix_size - row);
-
-        for (int p = 0; p < height; p++)
-            right_hand_side[row + p] = 0.;
-
-        for (int col = 0; col < matrix_size; )
-        {
-            int width = std::min(block_size, matrix_size - col);
-            for (int p = 0; p < height; p++)
-            {
-                double sum = right_hand_side[row + p];
-                // столбцы с чётным глобальным индексом
-                for (int q = col % 2; q < width; q += 2)
-                {
-                    double value = block[q];
-                    if (!std::isfinite(value))
-                        return 0;
-                    // чтобы не было переполнения правой части
-                    if ((sum > 0. && value > 0.) || (sum < 0. && value < 0.))
-                    {
-                        double abs_sum   = std::fabs(sum);
-                        double abs_value = std::fabs(value);
-                        if (std::min(abs_sum, abs_value) > DBL_MAX - std::max(abs_sum, abs_value))
-                            return 0;
-                    }
-                    sum += value;
-                }
-                right_hand_side[row + p] = sum;
-                block     += width;
-            }
-            col += width;
-        }
-        row += height;
-    }
-    return 1;
 }
 
 bool LinearSystem::init_perm()
