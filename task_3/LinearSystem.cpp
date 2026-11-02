@@ -299,19 +299,19 @@ double LinearSystem::get_matrix_norm() const
 {
     double norm = 0.;
 
-    for (int i = 0; i < block_count; i++)
+    for (int j = 0; j < block_count; j++)
     {
-        int height = std::min(block_size, matrix_size - i * block_size);
+        int width = std::min(block_size, matrix_size - j * block_size);
 
-        for (int row = 0; row < height; row++)
+        for (int col = 0; col < width; col++)
         {
             double sum = 0.;
 
-            for (int j = 0; j < block_count; j++)
+            for (int i = 0; i < block_count; i++)
             {
-                int width           = std::min(block_size, matrix_size - j * block_size);
+                int height          = std::min(block_size, matrix_size - i * block_size);
                 const double* block = coeff_matrix + i * block_size * matrix_size + j * block_size * height;
-                for (int col = 0; col < width; col++)
+                for (int row = 0; row < height; row++)
                 {
                     double value = std::fabs(block[row * width + col]);
                     if (std::min(sum, value) > DBL_MAX - std::max(sum, value))

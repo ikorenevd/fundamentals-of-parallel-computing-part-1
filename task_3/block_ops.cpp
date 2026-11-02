@@ -43,10 +43,10 @@ double calculate_block_norm(const double* block, int m, int first)
     if (block == nullptr || m < 1 || first < 0 || first >= m)
         return HUGE_VAL;
     double max = 0.;
-    for (int i = first; i < m; i++)
+    for (int j = first; j < m; j++)
     {
         double sum = 0.;
-        for (int j = first; j < m; j++)
+        for (int i = first; i < m; i++)
         {
             double value = std::fabs(block[i * m + j]);
             if (!std::isfinite(value) || std::min(sum, value) > DBL_MAX - std::max(sum, value))
