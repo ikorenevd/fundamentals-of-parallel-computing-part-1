@@ -25,6 +25,8 @@ else
 	ASAN_OPTIONS ?= detect_leaks=1:halt_on_error=1
 endif
 
+MEMCHECK_THREADS ?= 1 2 3 4 5 6 7 8
+
 .PHONY: clean memcheck
 
 SOURCES = *.cpp
@@ -39,18 +41,22 @@ clean:
 memcheck: $(SOURCES) $(HEADERS) Makefile
 	mkdir -p build
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(FPFLAGS) -O3 -fsanitize=address -fno-omit-frame-pointer $(SOURCES) $(LDFLAGS) $(LDLIBS) -o build/memcheck
-	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 40 2 1 4 3
-	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 1340 12 1 10 1
-	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 20 10 1 10 1
-	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 21 10 1 10 1
-	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 1000 7 1 10 1
-	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 201 40 1 10 1
-	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 2000 20 1 10 1
-	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 2000 1000 1 10 1
-	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 1500 142 1 10 3
-	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 1660 300 1 10 2
-	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 100 23 1 10 4
-	ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 200 2 1 10 4
+	@set -e; \
+	for p in $(MEMCHECK_THREADS); do \
+		printf '\nmemcheck: p = %s\n' "$$p"; \
+		ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 40 2 $$p 4 3; \
+		ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 1340 12 $$p 10 1; \
+		ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 20 10 $$p 10 1; \
+		ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 21 10 $$p 10 1; \
+		ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 1000 7 $$p 10 1; \
+		ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 201 40 $$p 10 1; \
+		ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 2000 20 $$p 10 1; \
+		ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 2000 1000 $$p 10 1; \
+		ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 1500 142 $$p 10 3; \
+		ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 1660 300 $$p 10 2; \
+		ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 100 23 $$p 10 4; \
+		ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 200 2 $$p 10 4; \
+	done
 
 zip:
 	zip Korenev_ID.zip *.cpp *.h Makefile

@@ -51,9 +51,12 @@ int main(int argc, char** argv)
     }
 
     // аргументы потоков и потоки 
-    args = new Args[threads_count];
-    threads = new pthread_t[threads_count]; 
-    if (!args || !threads)
+    try
+    {
+        args = new Args[threads_count];
+        threads = new pthread_t[threads_count];
+    }
+    catch (const std::bad_alloc&)
     {
         std::fprintf(stderr, "Error: couldn't allocate memory for args or threads\n");
         
@@ -107,10 +110,15 @@ int main(int argc, char** argv)
     // работаем == запускаем потоки
     for (int th_num = 1; th_num < threads_count; th_num++)
     {
-        if (pthread_create(threads + th_num, 0, thread_function, args + th_num))
-        {}
-        else
-        {}
+        if (pthread_create(threads + th_num, 0, thread_function, args + th_num) != 0)
+        {
+            std::fprintf(stderr, "Error: couldn't create threads\n");
+
+            delete[] args;
+            delete[] threads;
+
+            return 1;
+        }
     }
     thread_function(args + 0);
 
@@ -147,6 +155,11 @@ int main(int argc, char** argv)
 
     // конечный вывод
     std::printf("%s : Task = %d Res1 = %e Res2 = %e T1 = %.2f T2 = %.2f S = %d N = %d M = %d P = %d\n", argv[0], task, r1, r2, general_data.t1, general_data.t2, s, matrix_size, block_size, threads_count);
+
+    if (args)
+        delete[] args;
+    if (threads)
+        delete[] threads;
 
     return 0;
 }

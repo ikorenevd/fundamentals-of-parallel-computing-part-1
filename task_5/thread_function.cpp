@@ -231,8 +231,10 @@ void* thread_function(void* ptr)
         if (!arg->own.okay)
         {
             if (o_thread_number == 0)
+            {
                 arg->gen->t1 = get_full_time() - arg->gen->t1;
-            std::fprintf(stderr, "Error: couldn't find pivot block\n");
+                std::fprintf(stderr, "Error: couldn't find pivot block\n");
+            }
             return 0;
         }
 
@@ -290,15 +292,23 @@ void* thread_function(void* ptr)
 
         pthread_barrier_wait(g_barrier);
 
-        // каждый поток копирует строку с главным блоком в собственную память
-        std::memcpy(o_pivot_row, g_coeff_matrix + alpha * g_block_size * g_matrix_size, g_block_size * g_matrix_size * sizeof(double));
-        std::memcpy(o_current_block, g_right_hand_side + alpha * g_block_size, g_block_size * sizeof(double));
+        int first = alpha + 1;
+        int start_row = first + (o_thread_number - first % g_threads_count + g_threads_count) % g_threads_count;
+
+        // копируем только блоки справа от главного и только если есть свои нижние строки
+        if (start_row < g_blocks_count)
+        {
+            std::memcpy(
+                o_pivot_row,
+                get_block_address(g_coeff_matrix, g_matrix_size, g_block_size, alpha, first),
+                (size_t)g_block_size * (g_matrix_size - first * g_block_size) * sizeof(double)
+            );
+            std::memcpy(o_current_block, g_right_hand_side + alpha * g_block_size, g_block_size * sizeof(double));
+        }
 
         pthread_barrier_wait(g_barrier);
 
         // обновляем строки 
-        int first = alpha + 1;
-        int start_row = first + (o_thread_number - first % g_threads_count + g_threads_count) % g_threads_count;
         for (int i = start_row; i < g_blocks_count; i += g_threads_count)
         {
             int height = std::min(g_block_size, g_matrix_size - i * g_block_size);
@@ -313,9 +323,7 @@ void* thread_function(void* ptr)
             {
                 matrix_multiplication_subtract(
                     i_alpha,
-                    o_pivot_row + j * g_block_size * g_block_size,
-                    // o_pivot_row + j * height * g_block_size,
-                    // get_block_address(g_coeff_matrix, g_matrix_size, g_block_size, alpha, j),
+                    o_pivot_row + (j - first) * g_block_size * g_block_size,
                     get_block_address(g_coeff_matrix, g_matrix_size, g_block_size, i, j), 
                     height, 
                     g_block_size, 
@@ -355,7 +363,7 @@ void* thread_function(void* ptr)
     pthread_barrier_wait(g_barrier);
 
     for (int thread_num = 0; thread_num < g_threads_count; thread_num++)
-        if (!(arg - o_thread_number)->own.okay)
+        if (!(arg - o_thread_number + thread_num)->own.okay)
         {
             if (o_thread_number == 0)
             {
@@ -428,9 +436,10 @@ void* thread_function(void* ptr)
     pthread_barrier_wait(g_barrier);
 
     if (o_thread_number == 0)
+    {
         arg->gen->t1 = get_full_time() - arg->gen->t1;
-
-    arg->gen->solved = 1; // можно без мьютекса так как меняем на одно значение
+        arg->gen->solved = 1;
+    }
 
     pthread_barrier_wait(g_barrier);
     
@@ -482,8 +491,6 @@ void* thread_function(void* ptr)
             
             for (int thread_num = 0; thread_num < g_threads_count; thread_num++)
                 (arg + thread_num)->own.okay = everything_okay;
-
-            arg->gen->original_matrix_norm = get_matrix_norm(g_coeff_matrix, g_matrix_size, g_block_size, g_blocks_count);
         }
 
         pthread_barrier_wait(g_barrier);
