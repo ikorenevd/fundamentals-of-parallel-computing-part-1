@@ -43,9 +43,10 @@ void* thread_function(void* ptr)
     // закреплеяем тред за ядром
     {
         #ifdef __linux__
+            cpu_set_t cpu;
             CPU_ZERO(&cpu);
             int n_cpus = get_nprocs();
-            int cpu_id = n_cpus - 1 - (o_threads_number % n_cpus);
+            int cpu_id = n_cpus - 1 - (o_thread_number % n_cpus);
             CPU_SET(cpu_id, &cpu);
             pthread_t tid = pthread_self();
             pthread_setaffinity_np(tid, sizeof(cpu), &cpu);
