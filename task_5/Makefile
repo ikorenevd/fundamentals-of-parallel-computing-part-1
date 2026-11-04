@@ -44,18 +44,18 @@ memcheck: $(SOURCES) $(HEADERS) Makefile
 	@set -e; \
 	for p in $(MEMCHECK_THREADS); do \
 		printf '\nmemcheck: p = %s\n' "$$p"; \
-		ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 40 2 $$p 4 3; \
-		ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 1340 12 $$p 10 1; \
-		ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 20 10 $$p 10 1; \
-		ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 21 10 $$p 10 1; \
-		ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 1000 7 $$p 10 1; \
-		ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 201 40 $$p 10 1; \
-		ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 2000 20 $$p 10 1; \
-		ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 2000 1000 $$p 10 1; \
-		ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 1500 142 $$p 10 3; \
-		ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 1660 300 $$p 10 2; \
-		ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 100 23 $$p 10 4; \
-		ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 200 2 $$p 10 4; \
+		ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 40 2 $$p 0 3; \
+		ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 1340 12 $$p 0 1; \
+		ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 20 10 $$p 0 1; \
+		ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 21 10 $$p 0 1; \
+		ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 1000 7 $$p 0 1; \
+		ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 201 40 $$p 0 1; \
+		ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 2000 20 $$p 0 1; \
+		ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 2000 1000 $$p 0 1; \
+		ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 1500 142 $$p 0 3; \
+		ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 1660 300 $$p 0 2; \
+		ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 100 23 $$p 0 4; \
+		ASAN_OPTIONS='$(ASAN_OPTIONS)' ./build/memcheck 200 2 $$p 0 4; \
 	done
 
 zip:
