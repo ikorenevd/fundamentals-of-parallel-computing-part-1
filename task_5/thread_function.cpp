@@ -152,9 +152,10 @@ void* thread_function(void* ptr)
     double g_original_matrix_norm = arg->gen->original_matrix_norm;
     double eps = (MACHINE_EPS * MACHINE_EPS) * g_original_matrix_norm;
 
-    pthread_barrier_wait(g_barrier);
+    if (o_thread_number == 0)
+        arg->gen->t1 = get_full_time();
 
-    // todo: начать считать время работы(пример в лекциях, неизвестные функции там же)
+    pthread_barrier_wait(g_barrier);
 
     // прямой ход
     // для квадратных блоков
@@ -229,6 +230,8 @@ void* thread_function(void* ptr)
         // не нашли
         if (!arg->own.okay)
         {
+            if (o_thread_number == 0)
+                arg->gen->t1 = get_full_time() - arg->gen->t1;
             std::fprintf(stderr, "Error: couldn't find pivot block\n");
             return 0;
         }
@@ -355,7 +358,10 @@ void* thread_function(void* ptr)
         if (!(arg - o_thread_number)->own.okay)
         {
             if (o_thread_number == 0)
+            {
+                arg->gen->t1 = get_full_time() - arg->gen->t1;
                 std::fprintf(stdout, "Error: couldn't solve small system\n");
+            }
             return 0;
         }
 
@@ -420,7 +426,9 @@ void* thread_function(void* ptr)
             std::memcpy(g_solution + g_block_col_perm[i] * g_block_size, g_right_hand_side + i * g_block_size, g_block_size * sizeof(double));
 
     pthread_barrier_wait(g_barrier);
-    // todo: закончить считать время работы
+
+    if (o_thread_number == 0)
+        arg->gen->t1 = get_full_time() - arg->gen->t1;
 
     arg->gen->solved = 1; // можно без мьютекса так как меняем на одно значение
 
@@ -487,9 +495,17 @@ void* thread_function(void* ptr)
             return 0;
     }
 
+    if (o_thread_number == 0)
+        arg->gen->t2 = get_full_time();
+
     pthread_barrier_wait(g_barrier);
 
     thread_compute_residuals(arg);
+
+    pthread_barrier_wait(g_barrier);
+
+    if (o_thread_number == 0)
+        arg->gen->t2 = get_full_time() - arg->gen->t2;
 
     return 0;
 }

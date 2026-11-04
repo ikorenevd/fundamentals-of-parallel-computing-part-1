@@ -8,6 +8,8 @@ class GENERAL_MEMORY
 {
     public:
         bool solved = 0;
+        double t1 = 0.; // время решения
+        double t2 = 0.; // время подсчета невязок
 
         // параметры системы
         int matrix_size = 0;

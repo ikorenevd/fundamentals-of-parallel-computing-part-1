@@ -13,8 +13,6 @@ int main(int argc, char** argv)
     int r = 0; // не более чего выводим
     int s = 0; // тип функции
     int threads_count = 0;
-    double t1 = 0.; // время решения
-    double t2 = 0.; // время подсчет невязок
     double r1 = -1.;
     double r2 = -1.;
     char* file_name = nullptr;
@@ -148,7 +146,7 @@ int main(int argc, char** argv)
     }
 
     // конечный вывод
-    std::printf("%s : Task = %d Res1 = %e Res2 = %e T1 = %.2f T2 = %.2f S = %d N = %d M = %d P = %d\n", argv[0], task, r1, r2, t1, t2, s, matrix_size, block_size, threads_count);
+    std::printf("%s : Task = %d Res1 = %e Res2 = %e T1 = %.2f T2 = %.2f S = %d N = %d M = %d P = %d\n", argv[0], task, r1, r2, general_data.t1, general_data.t2, s, matrix_size, block_size, threads_count);
 
     return 0;
 }
