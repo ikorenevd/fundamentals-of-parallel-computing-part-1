@@ -1,462 +1,26 @@
-#include <cstdio>
-#include <cstring>
-#include <ctime>
-#include <new>
+#include "./headers_and_defines.h"
 
-#include <algorithm>
-#include <cstdlib>
-#include <cstring>
-#include <cstdio>
-#include <cmath>
-#include <cfloat>
-#include <climits>
-#include <utility>
-
-#include <pthread.h>
-#ifdef __APPLE__
-    #include "./pthread_barrier_t.h"
-#endif
-
-#define MACHINE_EPS __DBL_EPSILON__
-
-#ifdef __linux__
-    #include <sched.h>
-    #include <sys/sysinfo.h>
-#endif
+#include "./mem_struct.h"
 #include "./Args.h"
-#include "./matrix_io.h"
-#include "./block_ops.h"
-
-
-void get_block(const double* coeff_matrix, int matrix_size, int block_size, int i, int j, double* dest)
-{
-    int height = std::min(block_size, matrix_size - i * block_size);
-    int width  = std::min(block_size, matrix_size - j * block_size);
-    int offset = i * block_size * matrix_size + j * block_size * height;
-
-    std::memcpy(dest, coeff_matrix + offset, height * width * sizeof(double));
-}
-
-void set_block(double* coeff_matrix, int matrix_size, int block_size, int i, int j, const double* src)
-{
-    int height = std::min(block_size, matrix_size - i * block_size);
-    int width  = std::min(block_size, matrix_size - j * block_size);
-    int offset = i * block_size * matrix_size + j * block_size * height;
-
-    std::memcpy(coeff_matrix + offset, src, height * width * sizeof(double));
-}
-    
-
-double get_matrix_norm(double* coeff_matrix, int matrix_size, int block_size, int block_count)
-{
-    double norm = 0.;
-
-    for (int j = 0; j < block_count; j++)
-    {
-        int width = std::min(block_size, matrix_size - j * block_size);
-
-        for (int col = 0; col < width; col++)
-        {
-            double sum = 0.;
-
-            for (int i = 0; i < block_count; i++)
-            {
-                int height          = std::min(block_size, matrix_size - i * block_size);
-                const double* block = coeff_matrix + i * block_size * matrix_size + j * block_size * height;
-                for (int row = 0; row < height; row++)
-                {
-                    double value = std::fabs(block[row * width + col]);
-                    if (std::min(sum, value) > DBL_MAX - std::max(sum, value))
-                        return HUGE_VAL; // return infinity
-                    sum += value;
-                }
-            }
-
-            if (sum > norm)
-                norm = sum;
-        }
-    }
-
-    return norm;
-}
-
-inline int matrix_offset(int n, int m, int row, int col)
-{
-    int i = row / m;
-    int j = col / m;
-
-    int wr = std::min(m, n - i * m);
-    int wc = std::min(m, n - j * m);
-
-    return (i * n + j * wr) * m + (row % m) * wc + col % m;
-}
-
-inline double f(int n, int s, int i, int j)
-{
-    int t;
-    switch (s)
-    {
-    case 1:
-        t = i > j ? i : j;
-        return ((double)(n - t + 1));
-        break;
-    case 2:
-        t = i > j ? i : j;
-        return (double)t;
-        break;
-    case 3:
-        t = i - j;
-        return (double)(t >= 0 ? t : -t);
-        break;
-    case 4:
-        return (double)1 / (double)(i + j - 1);
-        break;
-    }
-    return 0;
-}
-
-bool init_coeff_matrix_from_file(double* coeff_matrix, int matrix_size, int block_size, char* file_name)
-{
-    if (file_name == nullptr)
-        return 0;
-
-    std::FILE* file = std::fopen(file_name, "r");
-    if (file == nullptr)
-        return 0;
-
-    for (int i = 0; i < matrix_size; i++)
-        for (int j = 0; j < matrix_size; j++)
-        {
-            double* value = coeff_matrix + matrix_offset(matrix_size, block_size, i, j);
-
-            if (std::fscanf(file, "%lf", value) != 1 || std::isnan(*value) || std::isinf(*value))
-            {
-                std::fclose(file);
-                return 0;
-            }
-        }
-
-    char c;
-    bool flag = std::fscanf(file, " %c", &c) == EOF && !std::ferror(file);
-
-    std::fclose(file);
-    return flag;
-}
-
-bool init_coeff_matrix_from_formula(double* coeff_matrix, int matrix_size, int block_size, int blocks_count, int s, int threads_count, int thread_number)
-{
-    // будет идти по блокам и заполнять в каждом блоке
-    for (int blocked_row = thread_number; blocked_row < blocks_count; blocked_row += threads_count)
-    {
-        double* block = coeff_matrix + blocked_row * block_size * matrix_size;
-        int height = std::min(block_size, matrix_size - blocked_row * block_size);
-
-        for (int blocked_col = 0; blocked_col < blocks_count; blocked_col++)
-        {
-            int width = std::min(block_size, matrix_size - blocked_col * block_size);
-
-            for (int q = 0; q < height; q++)
-                for (int p = 0; p < width; p++)
-                    *block++ = f(matrix_size, s, blocked_row * block_size + q + 1, blocked_col * block_size + p + 1);
-        }
-    }
-    return 1;
-}
-
-bool init_right_hand_size(double* coeff_matrix, double* right_hand_side, int matrix_size, int block_size, int blocks_count, int threads_count, int thread_number)
-{
-    // будет идти по блокам и заполнять в каждом блоке
-    for (int blocked_row = thread_number; blocked_row < blocks_count; blocked_row += threads_count)
-    {
-        double* block = coeff_matrix + blocked_row * block_size * matrix_size;
-        double* rhs_chunk = right_hand_side + blocked_row * block_size;
-        int height = std::min(block_size, matrix_size - blocked_row * block_size);
-        for (int u = 0; u < height; u++)
-            *(rhs_chunk + u) = 0.;
-        for (int blocked_col = 0; blocked_col < blocks_count; blocked_col++)
-        {
-            int width = std::min(block_size, matrix_size - blocked_col * block_size);
-
-            for (int q = 0; q < height; q++)
-            {
-                double sum = 0;
-                for (int p = 0; p < width; p++)
-                {
-                    int j = blocked_col * block_size + p + 1;
-                    if (j % 2 == 1)
-                    {
-                        double value = *block;
-              
-                        if (!std::isfinite(value))
-                            return 0;
- 
-                        if ((sum > 0. && value > 0.) || (sum < 0. && value < 0.))
-                        {
-                            double abs_sum   = std::fabs(sum);
-                            double abs_value = std::fabs(value);
-                            if (std::min(abs_sum, abs_value) > DBL_MAX - std::max(abs_sum, abs_value))
-                                return 0;
-                        }
-
-                        sum += value;
-                    }
-                    block++;
-                }
-                *(rhs_chunk + q) += sum;
-            }
-        }
-    }
-    return 1;
-}
-
-bool finding_block_pivot(Args* args, int alpha)
-{
-    const double* coeff_matrix = args->coeff_matrix;
-    int matrix_size = args->matrix_size;
-    int block_size = args->block_size;
-    int full_blocks_count = args->full_blocks_count;
-    
-    int thread_number = args->thread_number;
-    int threads_count = args->threads_count;
-
-    double original_matrix_norm = *args->original_matrix_norm;
-
-    args->best_block_i = -1;
-    args->best_block_j = -1;
-    args->best_block_norm = HUGE_VAL;
-
-    double pivot_eps = (matrix_size * MACHINE_EPS) * original_matrix_norm;
-    double* inverse_candidate = args->block1;
-    double* ws_block1 = args->block2;
-    int* w_perm = args->perm;
-    double* inverse_best = args->block_inverse;
-
-    int start_row = alpha + (thread_number - alpha % threads_count + threads_count) % threads_count;
-    for (int i = start_row; i < full_blocks_count; i += threads_count)
-    {
-        for (int j = alpha; j < full_blocks_count; j++)
-        {
-            get_block(coeff_matrix, matrix_size, block_size, i, j, ws_block1);
-            if (!invert_block(ws_block1, inverse_candidate, block_size, w_perm, pivot_eps))
-                continue;
-
-            double inverse_norm = calculate_block_norm(inverse_candidate, block_size);
-            if (!std::isfinite(inverse_norm))
-                continue;
-
-            // Первый подходящий блок задаёт начальную норму для сравнения.
-            if (args->best_block_i == -1 || inverse_norm < args->best_block_norm)
-            {
-                args->best_block_i = i;
-                args->best_block_j = j;
-                args->best_block_norm = inverse_norm;
-                std::swap(inverse_best, inverse_candidate);
-            }
-        }
-    }
-
-    if (args->best_block_i == -1)
-        return 0;
-
-    double eps = MACHINE_EPS * MACHINE_EPS * args->best_block_norm;
-    for (int t = 0; t < block_size * block_size; t++)
-    {
-        double value = inverse_best[t];
-        args->block_inverse[t] = std::fabs(value) < eps ? 0. : value;
-    }
-
-    return 1;
-}
-
-void* thread_function(void* a)
-{
-    Args* args = (Args*)a;
-
-    double* coeff_matrix    = args->coeff_matrix;
-    double* right_hand_side = args->right_hand_side;
-    double* solution        = args->solution;
-    int*    block_col_perm  = args->block_col_perm; // перестановки матричных столбцов
-    double* pivot_block_inverse = args->pivot_block_inverse;
-
-    int matrix_size      = args->matrix_size;
-    int block_size       = args->block_size;
-    int full_blocks_count = args->full_blocks_count;
-    int remainder_size   = args->remainder_size;
-    int blocks_count      = args->blocks_count;
-    double* original_matrix_norm = args->original_matrix_norm;
-
-    int threads_count = args->threads_count;
-    int thread_number = args->thread_number;
-
-    pthread_barrier_t* barrier = args->barrier;
-
-    // std::fprintf(stdout, "hello from %d thread num out of %d amount\n", thread_number, threads_count);
-
-    // привязка к процессору
-    #ifdef __linux__
-        cpu_set_t cpu;
-        CPU_ZERO(&cpu);
-        int n_cpus = get_nprocs();
-        int cpu_id = n_cpus - 1 - (thread_number % n_cpus);
-        CPU_SET(cpu_id, &cpu);
-        pthread_t tid = pthread_self();
-        pthread_setaffinity_np(tid, sizeof(cpu), &cpu);
-    #endif
-
-    // инициализируем свою память(ту часть памяти coeff_matrix, right_hand_side, solution, с которой будет работать этот поток)
-    // идем по блочным строкам этого потока, включая неполную последнюю строку
-    // pthread_barrier_wait(barrier);
-
-    for (int blocked_row = thread_number; blocked_row < blocks_count; blocked_row += threads_count)
-    {
-        // std::fprintf(stderr, "thread_number: %d, blocked_row: %d, blocks_count: %d\n", thread_number, blocked_row, blocks_count);
-        int height = std::min(block_size, matrix_size - blocked_row * block_size);
-        std::memset(coeff_matrix + blocked_row * block_size * matrix_size, 0, height * matrix_size * sizeof(double));
-        std::memset(right_hand_side + blocked_row * block_size, 0, height * sizeof(double));
-        std::memset(solution + blocked_row * block_size, 0, height * sizeof(double));
-    }
-
-    if (thread_number == 0)
-        for (int i = 0; i < full_blocks_count; i++)
-            block_col_perm[i] = i;
-        
-    pthread_barrier_wait(barrier);
-    // выделяем локальную память с проверкой
-    args->pivot_block_row = new double[matrix_size * block_size];
-    args->block1          = new double[block_size * block_size];
-    args->block2          = new double[block_size * block_size];
-    args->block3          = new double[block_size * block_size];
-    args->perm            = new int[block_size];
-    args->buffer          = new double[block_size];
-    args->block_inverse = new double[block_size * block_size];
-    args->mem_alloc = args->pivot_block_row && args->block1 && args->block2
-        && args->block3 && args->perm && args->buffer && args->block_inverse;
-    
-    // барьер
-    pthread_barrier_wait(barrier);
-    
-    // основной поток проверяет все ли выделено, если нет, то нужно выйти
-    Args* all_args = args - thread_number;
-    if (thread_number == 0)
-    {
-        for (int i = 1; i < threads_count; i++)
-            if (!all_args[i].mem_alloc)
-                all_args[0].mem_alloc = 0;
-
-        if (!all_args[0].mem_alloc)
-            std::fprintf(stderr, "error: local memory allocation\n");
-    }
-
-    // все потоки должны получить результат проверки до продолжения работы
-    pthread_barrier_wait(barrier);
-    if (!all_args[0].mem_alloc)
-        return 0;
-
-    pthread_barrier_wait(barrier);
-    // инициализация матрицы
-    // todo: добавить флаг корректной инициализации и обработать ошибки (в особенности чтения из файла)
-    if (args->s == 0)
-    {
-        if (thread_number == 0)
-            init_coeff_matrix_from_file(coeff_matrix, matrix_size, block_size, args->file_name);
-    }
-    
-    if (args->s != 0)
-        init_coeff_matrix_from_formula(coeff_matrix, matrix_size, block_size, blocks_count, args->s, threads_count, thread_number);
-
-    pthread_barrier_wait(barrier);
-
-    // инициализация правой части
-    // todo: проверка на корректность
-    init_right_hand_size(coeff_matrix, right_hand_side, matrix_size, block_size, blocks_count, threads_count, thread_number);
-
-    pthread_barrier_wait(barrier);
-
-    if (thread_number == 0)
-    {
-        print_matrix(matrix_size, matrix_size, block_size, coeff_matrix, args->r, "Coefficient Matrix:\n");
-        print_matrix(1, matrix_size, block_size, right_hand_side, args->r, "Right Hand Side:\n");
-    }
-    
-    pthread_barrier_wait(barrier);
-
-    // todo: начать считать время работы
-
-    // прмяой ход
-    {
-        for (int alpha = 0; alpha < full_blocks_count; alpha++)
-        {
-            // каждый поток ищет кандидаат на главный блок в своих строках
-
-            // барьер
-
-            // нулевой поток сравнивает кандидаты по норме обратной матрицы
-
-            // барьер // мб убрать этот барьер и пусть это делает один поток???
-
-            // поток с лучшим вариантом записывает его в общую память (лежит в args)
-            
-            // барьер
-            
-            // нулевой поток меняет блочные строки и соотв. чанки правой части
-
-            // барьер
-
-            // каждый поток меняет блочные столбцы внутри себя
-            // нулевой поток запоминает перестановки
-
-            // барьер
-
-            // потоком, где теперь расположен главный элемент нормируется главная строка
-
-            // барьер
-
-            // каждый поток ее копирует в свою память
-            // обновляются собственные строки
-
-        }
-        // барьер // этот можно убрать
-
-        // если есть неквадратные блоки, то соотв. поток решает оставшуюся систему наивным методом гаусса
-
-        // барьер
-    }
-
-    // обратный ход
-    {
-        
-    }
-
-    // todo: закончить время работы
-
-    return 0;
-}
+#include "./thread_function.h"
 
 int main(int argc, char** argv)
 {
     int task = 11;
-    int matrix_size = 0,
-        block_size = 0,
-        r = 0,
-        s = 0,
-        threads_count = 0,
-        full_blocks_count = 0,
-        remainder_size = 0,
-        blocks_count = 0;
-    double t1 = 0., t2 = 0., r1 = -1., r2 = -1.;
+    int matrix_size = 0;
+    int block_size = 0;
+    int r = 0; // не более чего выводим
+    int s = 0; // тип функции
+    int threads_count = 0;
+    double t1 = 0.; // время решения
+    double t2 = 0.; // время подсчет невязок
+    double r1 = -1.;
+    double r2 = -1.;
     char* file_name = nullptr;
-    // bool solved = 0;
-    // общие данные системы - глобальная память
-    double* coeff_matrix    = 0;
-    double* right_hand_side = 0;
-    double* solution        = 0;
-    int*    block_col_perm      = 0; // перестановки матричных столбцов
-    double* pivot_block_inverse = 0;
 
-    // потоки и барьер
-    pthread_t* pid             = 0;
-    pthread_barrier_t* barrier = 0;
-    Args* args                 = 0;
+    GENERAL_MEMORY general_data;
+    Args*          args = 0;
+    pthread_t*     threads = 0;
 
     // считываем входные данные
     if (!((argc == 6 || argc == 7)
@@ -474,174 +38,89 @@ int main(int argc, char** argv)
         file_name = argv[6];
 
     // проверяем на корректность
-    if ((matrix_size < 1 || block_size < 1 || r < 0 || threads_count < 1)
+    if (matrix_size < 1
+        || block_size < 1
+        || r < 0 
+        || threads_count < 1
         || (s > 4)
         || (s == 0 && file_name == nullptr)
         || (argc == 6 && s < 0)
         || (argc == 7 && s != 0))
     {
-        std::fprintf(stderr, "Wrong input\n");
+        std::fprintf(stderr, "Wrong arguments\n");
         return 1;
     }
 
-    // создание системы
-    block_size       = std::min(matrix_size, block_size);
-    full_blocks_count = matrix_size / block_size;
-    remainder_size   = matrix_size % block_size;
-    blocks_count      = full_blocks_count + (remainder_size != 0);
-
-    // if (threads_count > blocks_count)
-    //     threads_count = blocks_count;
-
-    // выделение памяти (нужно только глобальную)
+    // аргументы потоков и потоки 
+    args = new Args[threads_count];
+    threads = new pthread_t[threads_count]; 
+    if (!args || !threads)
     {
-        coeff_matrix    = new double[matrix_size * matrix_size];
-        right_hand_side = new double[matrix_size];
-        solution        = new double[matrix_size];
-        block_col_perm  = new int[full_blocks_count];
-        pivot_block_inverse = new double[block_size * block_size];
-
-        if (!coeff_matrix || !right_hand_side || !solution || !block_col_perm || !pivot_block_inverse)
-        {
-            if (coeff_matrix)
-                delete[] coeff_matrix;
-            if (right_hand_side)
-                delete[] right_hand_side;
-            if (solution)
-                delete[] solution;
-            if(block_col_perm)
-                delete[] block_col_perm;
-            if (pivot_block_inverse)
-                delete[] pivot_block_inverse;
-
-            std::fprintf(stderr, "error: memory allocation\n");
-            return 1;
-        }
-
-        pid     = new pthread_t[threads_count - 1];
-        args    = new Args[threads_count];
-        barrier = new pthread_barrier_t;
-
-        if (!pid || !args || !barrier)
-        {
-            if (pid)
-                delete[] pid;
-            if (args)
-                delete[] args;
-            if (barrier)
-                delete barrier;
-
-            std::fprintf(stderr, "error: memory allocation\n");
-            return 1;
-        }
-
-        int k;
-        for (k = 0; k < threads_count; k++)
-        {
-            args[k].coeff_matrix    = coeff_matrix;
-            args[k].right_hand_side = right_hand_side;
-            args[k].solution        = solution;
-            args[k].block_col_perm  = block_col_perm;
-            args[k].pivot_block_inverse = pivot_block_inverse;
-            
-            args[k].matrix_size = matrix_size;
-            args[k].block_size = block_size;
-            args[k].full_blocks_count = full_blocks_count;
-            args[k].remainder_size = remainder_size;
-            args[k].blocks_count = blocks_count;
-
-            args[k].threads_count = threads_count;
-            args[k].thread_number = k;
-
-            args[k].r         = r;
-            args[k].s         = s;
-            args[k].file_name = file_name;
-
-            args[k].barrier = barrier;
-        }
-    }
-
-    // инициализируем барьер
-    if(pthread_barrier_init(barrier, 0, threads_count) != 0)
-    {
-        // todo обработка ошибки и отчиска памяти
+        std::fprintf(stderr, "Error: couldn't allocate memory for args or threads\n");
+        
+        if (args)
+            delete[] args;
+        if (threads)
+            delete[] threads;
+        
         return 1;
     }
 
-    // запускаем треды
-    for (int i = 0; i < threads_count - 1; i++)
+    // общие данные потоков
+    general_data.set(matrix_size, block_size, threads_count, r, s, file_name);
+    if (!general_data.allocate())
     {
-        int flag = pthread_create(pid + i, 0, thread_function, args + i + 1);
+        std::fprintf(stderr, "Error: couldn't allocate memory for general data\n");
+        
+        delete[] args;
+        delete[] threads;
+        
+        return 1;
+    }
 
-        if (flag != 0)
+    // барьер
+    if (!general_data.create_and_init_barrier())
+    {
+        std::fprintf(stderr, "Error: couldn't create or allocate barrier\n");
+
+        delete[] args;
+        delete[] threads;
+
+        return 1;
+    }
+
+    // инициализируем аргументы и выделяем локальные данные потоков
+    for (int thread_num = 0; thread_num < threads_count; thread_num++)
+    {
+        args[thread_num].gen = &general_data;
+        args[thread_num].own.thread_number = thread_num;
+        if (!args[thread_num].own.allocate(matrix_size, block_size))
         {
-            std::fprintf(stderr, "error: could not create threads\n");
+            std::fprintf(stderr, "Error: couldn't allocate threads own memory\n");
 
-            // todo: осводобить глобальную и локальную память
+            delete[] args;
+            delete[] threads;
 
             return 1;
         }
+    }
+
+    // работаем == запускаем потоки
+    for (int th_num = 1; th_num < threads_count; th_num++)
+    {
+        if (pthread_create(threads + th_num, 0, thread_function, args + th_num))
+        {}
+        else
+        {}
     }
     thread_function(args + 0);
+    
 
-    // ждем их окончания
-    for (int i = 0; i < threads_count - 1; i++)
-    {
-        int flag = pthread_join(*(pid + i), 0);
-        
-        if (flag != 0)
-        {
-            std::fprintf(stderr, "error: could not join thread\n");
-            // todo: осводобить глобальную и локальную память
-        
-            return 1;
-        }
-    }
-
-    int status = args[0].mem_alloc ? 0 : 1;
+    for (int th_num = 1; th_num < threads_count; th_num++)
+        pthread_join(*(threads + th_num), 0);
 
     // конечный вывод
-    if (status == 0)
-        std::printf("%s : Task = %d Res1 = %e Res2 = %e T1 = %.2f T2 = %.2f S = %d N = %d M = %d P = %d\n", argv[0], task, r1, r2, t1, t2, s, matrix_size, block_size, threads_count);
-
-    // освобождаем память после завершения всех потоков, в том числе при ошибке выделения
-    if (args)
-    {
-        for (int i = 0; i < threads_count; i++)
-        {
-            if (args[i].pivot_block_row)
-                delete[] args[i].pivot_block_row;
-            if (args[i].block1)
-                delete[] args[i].block1;
-            if (args[i].block2)
-                delete[] args[i].block2;
-            if (args[i].block3)
-                delete[] args[i].block3;
-            if (args[i].perm)
-                delete[] args[i].perm;
-            if (args[i].buffer)
-                delete[] args[i].buffer;
-        }
-    }
-    if (barrier)
-    {
-        pthread_barrier_destroy(barrier);
-        delete barrier;
-    }
-    if (pid)
-        delete[] pid;
-    if (args)
-        delete[] args;
-    if (coeff_matrix)
-        delete[] coeff_matrix;
-    if (right_hand_side)
-        delete[] right_hand_side;
-    if (solution)
-        delete[] solution;
-    if (block_col_perm)
-        delete[] block_col_perm;
-    if (pivot_block_inverse)
-        delete[] pivot_block_inverse;
+    std::printf("%s : Task = %d Res1 = %e Res2 = %e T1 = %.2f T2 = %.2f S = %d N = %d M = %d P = %d\n", argv[0], task, r1, r2, t1, t2, s, matrix_size, block_size, threads_count);
 
     return 0;
 }

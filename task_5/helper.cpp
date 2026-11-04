@@ -1,9 +1,178 @@
-#include "./block_ops.h"
+#include "./helper.h"
 
-#include <cmath>
-#include <cfloat>
-#include <algorithm>
-#include <cstring>
+#include "./headers_and_defines.h"
+
+int matrix_offset(int n, int m, int row, int col)
+{
+    int i = row / m;
+    int j = col / m;
+
+    int wr = std::min(m, n - i * m);
+    int wc = std::min(m, n - j * m);
+
+    return (i * n + j * wr) * m + (row % m) * wc + col % m;
+}
+
+double f(int n, int s, int i, int j)
+{
+    int t;
+    switch (s)
+    {
+    case 1:
+        t = i > j ? i : j;
+        return ((double)(n - t + 1));
+        break;
+    case 2:
+        t = i > j ? i : j;
+        return (double)t;
+        break;
+    case 3:
+        t = i - j;
+        return (double)(t >= 0 ? t : -t);
+        break;
+    case 4:
+        return (double)1 / (double)(i + j - 1);
+        break;
+    }
+    return 0;
+}
+
+void get_block(const double* coeff_matrix, int matrix_size, int block_size, int i, int j, double* dest)
+{
+    int height = std::min(block_size, matrix_size - i * block_size);
+    int width  = std::min(block_size, matrix_size - j * block_size);
+    int offset = i * block_size * matrix_size + j * block_size * height;
+
+    std::memcpy(dest, coeff_matrix + offset, height * width * sizeof(double));
+}
+
+double calculate_block_norm(const double* block, int m, int first)
+{
+    if (block == nullptr || m < 1 || first < 0 || first >= m)
+        return HUGE_VAL;
+    double max = 0.;
+    for (int i = first; i < m; i++)
+    {
+        double sum = 0.;
+        for (int j = first; j < m; j++)
+        {
+            double value = std::fabs(block[i * m + j]);
+            if (!std::isfinite(value) || std::min(sum, value) > DBL_MAX - std::max(sum, value))
+                return HUGE_VAL;
+            sum += value;
+        }
+        max = std::max(max, sum);
+    }
+
+    return max;
+}
+
+// 1 если нашли успешно и матрица обратима, 0 если обратное
+// inverse и block должны быть выделены m * m
+// block_perm m
+// при поиске обратной block изменяется, его нужно выделять с помощью get_block
+bool invert_block(double* block, double* inverse, int m, int* block_perm, double pivot_eps)
+{
+    if (!std::isfinite(pivot_eps) || pivot_eps < 0.)
+        return 0;
+
+    // делаем inverse единичной
+    std::memset(inverse, 0, sizeof(double) * m * m);
+    for (int i = 0; i < m; i++)
+    {
+        inverse[i * m + i] = 1.;
+        // перестановки столбцов
+        block_perm[i] = i;
+    }
+
+    for (int alpha = 0; alpha < m; alpha++)
+    {
+        int pivot_i      = alpha;
+        int pivot_j      = alpha;
+        double abs_pivot = find_block_max(block, m, alpha, pivot_i, pivot_j);
+
+        if (!std::isfinite(abs_pivot) || abs_pivot <= pivot_eps)
+            return 0;
+        double norm = calculate_block_norm(block, m, alpha);
+        double eps = MACHINE_EPS * norm;
+        if (!std::isfinite(eps))
+            return 0;
+
+        // меняем строки местами
+        if (pivot_i != alpha)
+            for (int j = 0; j < m; j++)
+            {
+                std::swap(block[alpha * m + j], block[pivot_i * m + j]);
+                std::swap(inverse[alpha * m + j], inverse[pivot_i * m + j]);
+            }
+
+        // меняем столбцы
+        if (pivot_j != alpha)
+        {
+            for (int i = 0; i < m; i++)
+                std::swap(block[i * m + alpha], block[i * m + pivot_j]);
+            // индексы столбцов
+            std::swap(block_perm[alpha], block_perm[pivot_j]);
+        }
+
+        // обнуляем
+        double row_eps = MACHINE_EPS * abs_pivot;
+        for (int i = alpha + 1; i < m; i++)
+        {
+            if (std::fabs(block[i * m + alpha]) < row_eps)
+            {
+                block[i * m + alpha] = 0.;
+                continue;
+            }
+            double coeff = block[i * m + alpha] / block[alpha * m + alpha];
+
+            for (int j = alpha + 1; j < m; j++)
+            {
+                double value = block[i * m + j] - coeff * block[alpha * m + j];
+                block[i * m + j] = std::fabs(value) < eps ? 0. : value;
+            }
+            
+            for (int j = 0; j < m; j++)
+                inverse[i * m + j] -= coeff * inverse[alpha * m + j];
+            
+            block[i * m + alpha] = 0.;
+        }
+
+    }
+
+    for (int i = m - 1; i >= 0; i--)
+    {
+        for (int k = i + 1; k < m; k++)
+        {
+            double coeff = block[i * m + k];
+            if (std::fabs(coeff) < MACHINE_EPS * std::fabs(block[i * m + i]))
+                continue;
+
+            for (int j = 0; j < m; j++)
+                inverse[i * m + j] -= coeff * inverse[k * m + j];
+        }
+
+        double r = 1. / block[i * m + i];
+        for (int j = 0; j < m; j++)
+            inverse[i * m + j] *= r;
+    }
+
+    for (int i = 0; i < m; )
+    {
+        int k = block_perm[i];
+        if (k == i)
+        {
+            i++;
+            continue;
+        }
+
+        for (int j = 0; j < m; j++)
+            std::swap(inverse[i * m + j], inverse[k * m + j]);
+        std::swap(block_perm[i], block_perm[k]);
+    }
+
+    return 1;
+}
 
 double find_block_max(double* block, int m, int alpha, int& pivot_i, int& pivot_j)
 {
@@ -38,28 +207,45 @@ double find_block_max(double* block, int m, int alpha, int& pivot_i, int& pivot_
     return abs_pivot;
 }
 
-double calculate_block_norm(const double* block, int m, int first)
+double get_matrix_norm(const double* coeff_matrix, int matrix_size, int block_size, int block_count)
 {
-    if (block == nullptr || m < 1 || first < 0 || first >= m)
-        return HUGE_VAL;
-    double max = 0.;
-    for (int i = first; i < m; i++)
+    double norm = 0.;
+
+    for (int j = 0; j < block_count; j++)
     {
-        double sum = 0.;
-        for (int j = first; j < m; j++)
+        int width = std::min(block_size, matrix_size - j * block_size);
+
+        for (int col = 0; col < width; col++)
         {
-            double value = std::fabs(block[i * m + j]);
-            if (!std::isfinite(value) || std::min(sum, value) > DBL_MAX - std::max(sum, value))
-                return HUGE_VAL;
-            sum += value;
+            double sum = 0.;
+
+            for (int i = 0; i < block_count; i++)
+            {
+                int height          = std::min(block_size, matrix_size - i * block_size);
+                const double* block = coeff_matrix + i * block_size * matrix_size + j * block_size * height;
+                for (int row = 0; row < height; row++)
+                {
+                    double value = std::fabs(block[row * width + col]);
+                    if (std::min(sum, value) > DBL_MAX - std::max(sum, value))
+                        return HUGE_VAL; // return infinity
+                    sum += value;
+                }
+            }
+
+            if (sum > norm)
+                norm = sum;
         }
-        max = std::max(max, sum);
     }
 
-    return max;
+    return norm;
 }
 
-// A = f × l, B = l × k, result = f × k.
+double* get_block_address(double* coeff_matrix, int matrix_size, int block_size, int i, int j)
+{
+    int height = std::min(block_size, matrix_size - i * block_size);
+    return (coeff_matrix + i * block_size * matrix_size + j * block_size * height);
+}
+
 void matrix_multiplication(const double* A, const double* B, double* result, int f, int l, int k)
 {
     int i = 0;
@@ -164,6 +350,15 @@ void matrix_multiplication(const double* A, const double* B, double* result, int
             r[j] = sum;
         }
     }
+}
+
+void set_block(double* coeff_matrix, int matrix_size, int block_size, int i, int j, const double* src)
+{
+    int height = std::min(block_size, matrix_size - i * block_size);
+    int width = std::min(block_size, matrix_size - j * block_size);
+    int offset = i * block_size * matrix_size + j * block_size * height;
+
+    memcpy(coeff_matrix + offset, src, height * width * sizeof(double));
 }
 
 // A = f × l, B = l × k, result -= A × B; result = f × k.
@@ -289,113 +484,6 @@ void matrix_multiplication_subtract(const double* A, const double* B, double* re
     }
 }
 
-// 1 если нашли успешно и матрица обратима, 0 если обратное
-// inverse и block должны быть выделены m * m
-// block_perm m
-// при поиске обратной block изменяется, его нужно выделять с помощью get_block
-bool invert_block(double* block, double* inverse, int m, int* block_perm, double pivot_eps)
-{
-    if (!std::isfinite(pivot_eps) || pivot_eps < 0.)
-        return 0;
-
-    // делаем inverse единичной
-    std::memset(inverse, 0, sizeof(double) * m * m);
-    for (int i = 0; i < m; i++)
-    {
-        inverse[i * m + i] = 1.;
-        // перестановки столбцов
-        block_perm[i] = i;
-    }
-
-    for (int alpha = 0; alpha < m; alpha++)
-    {
-        int pivot_i      = alpha;
-        int pivot_j      = alpha;
-        double abs_pivot = find_block_max(block, m, alpha, pivot_i, pivot_j);
-
-        if (!std::isfinite(abs_pivot) || abs_pivot <= pivot_eps)
-            return 0;
-        double norm = calculate_block_norm(block, m, alpha);
-        double eps = MACHINE_EPS * norm;
-        if (!std::isfinite(eps))
-            return 0;
-
-        // меняем строки местами
-        if (pivot_i != alpha)
-            for (int j = 0; j < m; j++)
-            {
-                std::swap(block[alpha * m + j], block[pivot_i * m + j]);
-                std::swap(inverse[alpha * m + j], inverse[pivot_i * m + j]);
-            }
-
-        // меняем столбцы
-        if (pivot_j != alpha)
-        {
-            for (int i = 0; i < m; i++)
-                std::swap(block[i * m + alpha], block[i * m + pivot_j]);
-            // индексы столбцов
-            std::swap(block_perm[alpha], block_perm[pivot_j]);
-        }
-
-        // обнуляем
-        double row_eps = MACHINE_EPS * abs_pivot;
-        for (int i = alpha + 1; i < m; i++)
-        {
-            if (std::fabs(block[i * m + alpha]) < row_eps)
-            {
-                block[i * m + alpha] = 0.;
-                continue;
-            }
-            double coeff = block[i * m + alpha] / block[alpha * m + alpha];
-
-            for (int j = alpha + 1; j < m; j++)
-            {
-                double value = block[i * m + j] - coeff * block[alpha * m + j];
-                block[i * m + j] = std::fabs(value) < eps ? 0. : value;
-            }
-            
-            for (int j = 0; j < m; j++)
-                inverse[i * m + j] -= coeff * inverse[alpha * m + j];
-            
-            block[i * m + alpha] = 0.;
-        }
-
-    }
-
-    for (int i = m - 1; i >= 0; i--)
-    {
-        for (int k = i + 1; k < m; k++)
-        {
-            double coeff = block[i * m + k];
-            if (std::fabs(coeff) < MACHINE_EPS * std::fabs(block[i * m + i]))
-                continue;
-
-            for (int j = 0; j < m; j++)
-                inverse[i * m + j] -= coeff * inverse[k * m + j];
-        }
-
-        double r = 1. / block[i * m + i];
-        for (int j = 0; j < m; j++)
-            inverse[i * m + j] *= r;
-    }
-
-    for (int i = 0; i < m; )
-    {
-        int k = block_perm[i];
-        if (k == i)
-        {
-            i++;
-            continue;
-        }
-
-        for (int j = 0; j < m; j++)
-            std::swap(inverse[i * m + j], inverse[k * m + j]);
-        std::swap(block_perm[i], block_perm[k]);
-    }
-
-    return 1;
-}
-
 bool naive_gauss_solve_block(double* block, int m, double* b, int* block_perm, double pivot_eps)
 {
     if (!std::isfinite(pivot_eps) || pivot_eps < 0.)
@@ -472,6 +560,7 @@ bool naive_gauss_solve_block(double* block, int m, double* b, int* block_perm, d
             return 0;
 
         b[i] = value;
+        // block[i * m + i] = 1.;
     }
 
     // Восстанавливаем исходный порядок неизвестных.
