@@ -3,12 +3,9 @@
 
 // сами потоки
 #include <pthread.h>
-// (инвалидное яблоко не имеет реализации барьеров)
+// (инвалидное яблоко не имеет реализацию барьеров)
 #ifdef __APPLE__
     #include "./pthread_barrier_t.h"
-#endif
-#ifdef __linux__
-    #include <pthread_barrier_t.h> 
 #endif
 
 // машинный эпсилон
@@ -26,6 +23,8 @@
 #include <algorithm>
 #include <time.h>
 #include <new>
+#include <cstring>
+#include <cmath>
 
 #include <sys/time.h>
 
