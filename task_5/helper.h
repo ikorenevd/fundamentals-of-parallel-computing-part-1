@@ -22,4 +22,8 @@ void matrix_multiplication_subtract(const double* A, const double* B, double* re
 
 bool naive_gauss_solve_block(double* block, int m, double* b, int* block_perm, double pivot_eps);
 
+
+double get_full_time(void);
+// double get_cpu_time(void);
+
 #endif

@@ -24,7 +24,10 @@
 #include <cstdio>
 #include <cfloat>
 #include <algorithm>
+#include <time.h>
 #include <new>
+
+#include <sys/time.h>
 
 
 #endif

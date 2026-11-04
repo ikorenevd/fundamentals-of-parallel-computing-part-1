@@ -310,7 +310,8 @@ void* thread_function(void* ptr)
             {
                 matrix_multiplication_subtract(
                     i_alpha,
-                    o_pivot_row + j * height * g_block_size,
+                    o_pivot_row + j * g_block_size * g_block_size,
+                    // o_pivot_row + j * height * g_block_size,
                     // get_block_address(g_coeff_matrix, g_matrix_size, g_block_size, alpha, j),
                     get_block_address(g_coeff_matrix, g_matrix_size, g_block_size, i, j), 
                     height, 
@@ -358,23 +359,191 @@ void* thread_function(void* ptr)
             return 0;
         }
 
+    // обратный ход
     pthread_barrier_wait(g_barrier);
 
-    // обратных ход
-    if (g_remainder_size != 0 && (g_full_block_count % g_threads_count == o_thread_number))
-        std::memcpy(g_solution + g_block_size * g_full_block_count, g_right_hand_side + g_block_size * g_full_block_count, g_remainder_size);
-        
-    arg->own.okay = 1;
+
+    // записываем последний блок решения
+    int last_row = g_blocks_count - 1;
+    int last_height = std::min(g_block_size, g_matrix_size - last_row * g_block_size);
+
+    if (o_thread_number == last_row % g_threads_count)
+        std::memcpy(
+            g_solution + last_row * g_block_size,
+            g_right_hand_side + last_row * g_block_size,
+            last_height * sizeof(double)
+        );
 
     pthread_barrier_wait(g_barrier);
 
-    for (int alpha = g_full_block_count - 1; alpha >= 0; alpha--)
+    for (int alpha = last_row; alpha > 0; alpha--)
     {
-        
+        int width = std::min(g_block_size, g_matrix_size - alpha * g_block_size);
+
+        // копируем готовый блок решения в собственную память
+        std::memcpy(
+            o_current_block,
+            g_solution + alpha * g_block_size,
+            width * sizeof(double)
+        );
+
+        // каждый поток обновляет свои строки выше alpha
+        for (int i = o_thread_number; i < alpha; i += g_threads_count)
+        {
+            matrix_multiplication(
+                get_block_address(g_coeff_matrix, g_matrix_size, g_block_size, i, alpha),
+                o_current_block,
+                o_buffer,
+                g_block_size,
+                width,
+                1
+            );
+
+            for (int t = 0; t < g_block_size; t++)
+                g_right_hand_side[i * g_block_size + t] -= o_buffer[t];
+        }
+
+        // владелец следующей строки записывает готовый блок решения
+        if (o_thread_number == (alpha - 1) % g_threads_count)
+            std::memcpy(
+                g_solution + (alpha - 1) * g_block_size,
+                g_right_hand_side + (alpha - 1) * g_block_size,
+                g_block_size * sizeof(double)
+            );
+
+        pthread_barrier_wait(g_barrier);
     }
 
+    // восстанавливаем исходный порядок неизвестных
+    if (o_thread_number == 0)
+        for (int i = 0; i < g_full_block_count; i++)
+            std::memcpy(g_solution + g_block_col_perm[i] * g_block_size, g_right_hand_side + i * g_block_size, g_block_size * sizeof(double));
 
+    pthread_barrier_wait(g_barrier);
     // todo: закончить считать время работы
+
+    arg->gen->solved = 1; // можно без мьютекса так как меняем на одно значение
+
+    pthread_barrier_wait(g_barrier);
+    
+    // реинициализация данных
+    {
+        // инициализация матрицы коэффициентов и проверка все ли хорошо
+        if (g_s == 0)
+        {
+            if (o_thread_number == 0)
+                arg->own.okay = init_coeff_matrix_from_file(g_coeff_matrix, g_matrix_size, g_block_size, g_file_name);
+            else
+                arg->own.okay = 1;
+        }
+        else
+            arg->own.okay = init_coeff_matrix_from_formula(g_coeff_matrix, g_matrix_size, g_block_size, g_blocks_count, g_s, g_threads_count, o_thread_number);
+
+        pthread_barrier_wait(g_barrier);
+
+        if (o_thread_number == 0)
+        {
+            bool everything_okay = arg->own.okay;
+            for (int thread_num = 1; thread_num < g_threads_count; thread_num++)
+                everything_okay = everything_okay && (arg + thread_num)->own.okay;
+            
+            for (int thread_num = 0; thread_num < g_threads_count; thread_num++)
+                (arg + thread_num)->own.okay = everything_okay;
+        }
+
+        pthread_barrier_wait(g_barrier);
+
+        if (!arg->own.okay && o_thread_number == 0)
+            std::fprintf(stderr, "Error: couldn't init coefficient matrix\n");
+
+        if (!arg->own.okay)
+            return 0;
+
+        // инициализация правой части
+        pthread_barrier_wait(g_barrier);
+
+        arg->own.okay = init_right_hand_size(g_coeff_matrix, g_right_hand_side, g_matrix_size, g_block_size, g_blocks_count, g_threads_count, o_thread_number);
+        
+        pthread_barrier_wait(g_barrier);
+
+        if (o_thread_number == 0)
+        {
+            bool everything_okay = arg->own.okay;
+            for (int thread_num = 1; thread_num < g_threads_count; thread_num++)
+                everything_okay = everything_okay && (arg + thread_num)->own.okay;
+            
+            for (int thread_num = 0; thread_num < g_threads_count; thread_num++)
+                (arg + thread_num)->own.okay = everything_okay;
+
+            arg->gen->original_matrix_norm = get_matrix_norm(g_coeff_matrix, g_matrix_size, g_block_size, g_blocks_count);
+        }
+
+        pthread_barrier_wait(g_barrier);
+
+        if (!arg->own.okay && o_thread_number == 0)
+            std::fprintf(stderr, "Error: couldn't init right hand side\n");
+
+        if (!arg->own.okay)
+            return 0;
+    }
+
+    pthread_barrier_wait(g_barrier);
+
+    thread_compute_residuals(arg);
+
+    return 0;
+}
+
+void* thread_compute_residuals(void* ptr)
+{
+    Args* arg = (Args*)ptr;
+
+    const int g_matrix_size = arg->gen->matrix_size;
+    const int g_block_size = arg->gen->block_size;
+    const int g_blocks_count = arg->gen->block_count;
+    const int g_threads_count = arg->gen->threads_count;
+
+    const int o_thread_number = arg->own.thread_number;
+
+    const double* g_coeff_matrix = arg->gen->coeff_matrix;
+    const double* g_right_hand_side = arg->gen->right_hand_side;
+    const double* g_solution = arg->gen->solution;
+
+    double residual = 0.;
+    double norm_b = 0.;
+    double error = 0.;
+
+    for (int block_row = o_thread_number; block_row < g_blocks_count; block_row += g_threads_count)
+    {
+        int height = std::min(g_block_size, g_matrix_size - block_row * g_block_size);
+
+        for (int local_row = 0; local_row < height; local_row++)
+        {
+            int row = block_row * g_block_size + local_row;
+            double ax = 0.;
+
+            for (int block_col = 0; block_col < g_blocks_count; block_col++)
+            {
+                int col = block_col * g_block_size;
+                int width = std::min(g_block_size, g_matrix_size - col);
+
+                int offset = block_row * g_block_size * g_matrix_size
+                    + block_col * g_block_size * height
+                    + local_row * width;
+
+                for (int j = 0; j < width; j++)
+                    ax += g_coeff_matrix[offset + j] * g_solution[col + j];
+            }
+
+            residual += std::fabs(ax - g_right_hand_side[row]);
+            norm_b += std::fabs(g_right_hand_side[row]);
+            error += std::fabs(g_solution[row] - (row % 2 == 0 ? 1. : 0.));
+        }
+    }
+
+    arg->own.residual = residual;
+    arg->own.norm_b = norm_b;
+    arg->own.error = error;
 
     return 0;
 }

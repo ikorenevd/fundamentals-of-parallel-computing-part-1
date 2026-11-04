@@ -7,6 +7,8 @@
 class GENERAL_MEMORY
 {
     public:
+        bool solved = 0;
+
         // параметры системы
         int matrix_size = 0;
         int block_size = 0;
@@ -74,6 +76,10 @@ class THREAD_MEMORY
         double* best_inverse_pivot_block = 0;
         int* perm = 0; // перестановки для поиска обратного блока
         double* buffer = 0; // нужен для умножения матрицы на вектор (в обратном ходе)
+
+        double residual = 0.;
+        double norm_b = 0.;
+        double error = 0.;
 
         bool okay = 0;
 

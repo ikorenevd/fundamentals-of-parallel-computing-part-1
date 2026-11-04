@@ -1,6 +1,7 @@
 #include "./headers_and_defines.h"
 
 #include "./mem_struct.h"
+#include "./matrix_io.h"
 #include "./Args.h"
 #include "./thread_function.h"
 
@@ -114,10 +115,37 @@ int main(int argc, char** argv)
         {}
     }
     thread_function(args + 0);
-    
 
     for (int th_num = 1; th_num < threads_count; th_num++)
         pthread_join(*(threads + th_num), 0);
+
+    // решение закончено
+    bool solved = 1;
+    for (int th_num = 0; th_num < threads_count; th_num++)
+        solved = solved && args[th_num].own.okay;
+
+    if (solved)
+    {
+        print_matrix(1, matrix_size, block_size, general_data.solution, r, "Solution x:\n");
+
+        double residual = 0.;
+        double norm_b = 0.;
+        double error = 0.;
+
+        for (int th_num = 0; th_num < threads_count; th_num++)
+        {
+            residual += args[th_num].own.residual;
+            norm_b += args[th_num].own.norm_b;
+            error += args[th_num].own.error;
+        }
+
+        if (norm_b > 0.)
+            r1 = residual / norm_b;
+        else
+            r1 = (residual <= 0.) ? 0. : HUGE_VAL;
+
+        r2 = error / (matrix_size / 2 + matrix_size % 2);
+    }
 
     // конечный вывод
     std::printf("%s : Task = %d Res1 = %e Res2 = %e T1 = %.2f T2 = %.2f S = %d N = %d M = %d P = %d\n", argv[0], task, r1, r2, t1, t2, s, matrix_size, block_size, threads_count);

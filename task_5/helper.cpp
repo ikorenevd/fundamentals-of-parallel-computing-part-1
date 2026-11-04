@@ -579,3 +579,18 @@ bool naive_gauss_solve_block(double* block, int m, double* b, int* block_perm, d
 
     return 1;
 }
+
+double get_full_time(void)
+{
+    struct timeval buf;
+    gettimeofday(&buf, 0);
+    return buf.tv_sec + buf.tv_usec / 1e6;
+}
+
+// double get_cpu_time(void)
+// {
+//     struct timespec buf;
+//     if (clock_gettime(CLOCK_THREAD_CPUTIME_ID, &buf) != 0)
+//         return -1.;
+//     return buf.tv_sec + buf.tv_nsec / 1e9;
+// }
