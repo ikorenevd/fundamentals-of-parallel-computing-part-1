@@ -1,19 +1,19 @@
 #include "./mem_struct.h"
 
-void GENERAL_MEMORY::set(int m_size, int b_size, int th_count, int _r, int _s, char* _file_name)
+void SharedMemory::set(int matrix_order, int block_order, int number_of_threads, int output_limit, int formula, const char* input_file_name)
 {
-    matrix_size = m_size;
-    block_size = b_size;
+    matrix_size = matrix_order;
+    block_size = block_order;
     remainder_size = matrix_size % block_size;
     full_block_count = matrix_size / block_size;
     block_count = full_block_count + (remainder_size > 0);
-    threads_count = th_count;
-    s = _s;
-    r = _r;
-    file_name = _file_name;
+    thread_count = number_of_threads;
+    matrix_formula = formula;
+    print_limit = output_limit;
+    file_name = input_file_name;
 }
 
-bool GENERAL_MEMORY::create_and_init_barrier()
+bool SharedMemory::create_and_init_barrier()
 {
     try
     {
@@ -24,7 +24,7 @@ bool GENERAL_MEMORY::create_and_init_barrier()
         return 0;
     }
 
-    if (pthread_barrier_init(barrier, 0, threads_count) != 0)
+    if (pthread_barrier_init(barrier, 0, thread_count) != 0)
     {
         delete barrier;
         barrier = 0;
@@ -34,25 +34,25 @@ bool GENERAL_MEMORY::create_and_init_barrier()
     return 1;
 }
 
-bool GENERAL_MEMORY::allocate()
+bool SharedMemory::allocate()
 {
     try
     {
         coeff_matrix = new double[(size_t)matrix_size * (size_t)matrix_size];
         right_hand_side = new double[matrix_size];
         solution = new double[matrix_size];
-        block_col_perm = new int[full_block_count];
+        block_column_order = new int[full_block_count];
         inverse_pivot_block = new double[(size_t)block_size * (size_t)block_size];
     }
     catch (const std::bad_alloc&)
     {
         return 0;
     }
-    
+
     return 1;
 }
 
-void GENERAL_MEMORY::free()
+void SharedMemory::free()
 {
     if (coeff_matrix)
         delete[] coeff_matrix;
@@ -60,37 +60,40 @@ void GENERAL_MEMORY::free()
         delete[] right_hand_side;
     if (solution)
         delete[] solution;
-    if (block_col_perm)
-        delete[] block_col_perm;
+    if (block_column_order)
+        delete[] block_column_order;
     if (inverse_pivot_block)
         delete[] inverse_pivot_block;
     if (barrier)
+    {
+        pthread_barrier_destroy(barrier);
         delete barrier;
+    }
 
     coeff_matrix = 0;
     right_hand_side = 0;
     solution = 0;
-    block_col_perm = 0;
+    block_column_order = 0;
     inverse_pivot_block = 0;
+    barrier = 0;
 }
 
-GENERAL_MEMORY::~GENERAL_MEMORY()
+SharedMemory::~SharedMemory()
 {
-    if (barrier)
-        pthread_barrier_destroy(barrier);
+    pthread_mutex_destroy(&launch_mutex);
     free();
 }
 
-bool THREAD_MEMORY::allocate(int matrix_size, int block_size)
+bool ThreadMemory::allocate(int matrix_size, int block_size)
 {
     try
     {
-        pivot_row = new double[(size_t)block_size * (size_t)matrix_size];
-        inverse_pivot_block_candidate = new double[(size_t)block_size * (size_t)block_size];
-        current_block = new double[(size_t)block_size * (size_t)block_size];
-        best_inverse_pivot_block = new double[(size_t)block_size * (size_t)block_size];
-        perm = new int[block_size];
-        buffer = new double[block_size];
+        pivot_row_tail = new double[(size_t)block_size * (size_t)matrix_size];
+        inverse_candidate = new double[(size_t)block_size * (size_t)block_size];
+        working_block = new double[(size_t)block_size * (size_t)block_size];
+        best_inverse_block = new double[(size_t)block_size * (size_t)block_size];
+        column_order = new int[block_size];
+        vector_product = new double[block_size];
     }
     catch (const std::bad_alloc&)
     {
@@ -100,23 +103,30 @@ bool THREAD_MEMORY::allocate(int matrix_size, int block_size)
     return 1;
 }
 
-void THREAD_MEMORY::free()
+void ThreadMemory::free()
 {
-    if (pivot_row)
-        delete[] pivot_row;
-    if (inverse_pivot_block_candidate)
-        delete[] inverse_pivot_block_candidate;
-    if (current_block)
-        delete[] current_block;
-    if (best_inverse_pivot_block)
-        delete[] best_inverse_pivot_block;
-    if (perm)
-        delete[] perm;
-    if (buffer)
-        delete[] buffer;
+    if (pivot_row_tail)
+        delete[] pivot_row_tail;
+    if (inverse_candidate)
+        delete[] inverse_candidate;
+    if (working_block)
+        delete[] working_block;
+    if (best_inverse_block)
+        delete[] best_inverse_block;
+    if (column_order)
+        delete[] column_order;
+    if (vector_product)
+        delete[] vector_product;
+
+    pivot_row_tail = 0;
+    inverse_candidate = 0;
+    working_block = 0;
+    best_inverse_block = 0;
+    column_order = 0;
+    vector_product = 0;
 }
 
-THREAD_MEMORY::~THREAD_MEMORY()
+ThreadMemory::~ThreadMemory()
 {
     free();
 }

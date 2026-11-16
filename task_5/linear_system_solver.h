@@ -1,9 +1,10 @@
 #ifndef LINEAR_SYSTEM_SOLVER_H
 #define LINEAR_SYSTEM_SOLVER_H
 
-class Args;
+class ThreadArgs;
 
-bool find_block_pivot(Args* arg, int alpha);
-void swap_block_rows(Args* arg, int i, int j);
+bool forward_elimination(ThreadArgs* arg);
+bool solve_remainder_block(ThreadArgs* arg);
+void backward_substitution(ThreadArgs* arg);
 
 #endif
