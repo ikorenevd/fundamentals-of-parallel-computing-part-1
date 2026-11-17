@@ -250,8 +250,12 @@ int solve(double* matrix, double* eigenvalues, int matrix_size, double eps, int&
 
     double b_0 = 1. + 8. * DBL_EPSILON; // границы поиска
     double a_0 = -b_0;
-    double scaled_eps = std::min(eps, norm_A) / scale;
-    scaled_eps = std::min(scaled_eps, (b_0 - a_0) * half_width) / half_width;
+    double input_eps = std::min(eps, norm_A);
+    double scaled_eps = DBL_EPSILON;
+    // делаем все, чтобы избежать fpe underflow
+    if (scale >= 1. ? input_eps >= DBL_EPSILON * scale : input_eps / DBL_EPSILON >= scale)
+        scaled_eps = input_eps / scale;
+    scaled_eps = std::min(scaled_eps, half_width) / half_width;
     int found = bisect_eigenvalues(matrix, eigenvalues, matrix_size, a_0, b_0, scaled_eps, iterations_count);
 
     t2 = (double)(clock() - start) / CLOCKS_PER_SEC;
