@@ -158,6 +158,9 @@ namespace
             }
 
             double lambda_k = a + (b - a) / 2.;
+            if (a <= 0. && b >= 0. && n_minus(matrix, matrix_size, 0., 0) < k
+                && n_minus(matrix, matrix_size, 0., 1) >= k)
+                lambda_k = 0.;
             for (int j = n_a; j < n_b; j++)
                 eigenvalues[j - n_a_0] = lambda_k;
 
@@ -239,6 +242,14 @@ int solve(double* matrix, double* eigenvalues, int matrix_size, double eps, int&
     double rounded_center = mu - origin;
     double mu_error = (origin - (mu - rounded_center)) + (center - rounded_center);
 
+    // Если спектр близок к нулю, сдвиг может уничтожить малые собственные значения.
+    if (std::fabs(mu) <= 2. * half_width)
+    {
+        mu = mu_error = 0.;
+        gershgorin_bounds(matrix, matrix_size, 0., left, right);
+        half_width = std::max(std::fabs(left), std::fabs(right));
+    }
+
     // масштабируем саму матрицу
     for (int i = 0; i < matrix_size; i++)
     {
@@ -251,12 +262,22 @@ int solve(double* matrix, double* eigenvalues, int matrix_size, double eps, int&
     double b_0 = 1. + 8. * DBL_EPSILON; // границы поиска
     double a_0 = -b_0;
     double input_eps = std::min(eps, norm_A);
-    double scaled_eps = DBL_EPSILON;
-    // делаем все, чтобы избежать fpe underflow
-    if (scale >= 1. ? input_eps >= DBL_EPSILON * scale : input_eps / DBL_EPSILON >= scale)
-        scaled_eps = input_eps / scale;
+    double eps_scale = scale;
+    // мешанина кода
+    if (input_eps > 0. && input_eps < DBL_MIN && eps_scale < 1.)
+    {
+        input_eps /= DBL_EPSILON;
+        eps_scale /= DBL_EPSILON;
+    }
+    double scaled_eps = 0.;
+    if (eps_scale < 1. || input_eps >= DBL_MIN * eps_scale)
+        scaled_eps = input_eps / eps_scale;
+    if (half_width >= 1. && scaled_eps < DBL_MIN * half_width)
+        scaled_eps = 0.;
     scaled_eps = std::min(scaled_eps, half_width) / half_width;
+    scaled_eps = std::max(scaled_eps, 4. * DBL_MIN);
     int found = bisect_eigenvalues(matrix, eigenvalues, matrix_size, a_0, b_0, scaled_eps, iterations_count);
+    // int found = bisect_eigenvalues(matrix, eigenvalues, matrix_size, a_0, b_0, eps, iterations_count);
 
     t2 = (double)(clock() - start) / CLOCKS_PER_SEC;
 

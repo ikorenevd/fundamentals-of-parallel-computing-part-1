@@ -93,6 +93,16 @@ def check_rejection(result, diagnostic):
         raise ValueError("программа вывела результат для некорректного ввода")
 
 
+def check_formula_two(result):
+    check_spectrum(result, 1., (2. - math.sqrt(2.), 2., 2. + math.sqrt(2.)))
+    _, header, output = result.stdout.partition("Matrix:\n")
+    if not header:
+        raise ValueError("нет исходной матрицы")
+    rows = [[float(value) for value in line.split()] for line in output.splitlines()[:3]]
+    if rows != [[2., -1., 0.], [-1., 2., -1.], [0., -1., 2.]]:
+        raise ValueError(f"неверная матрица по формуле 2: {rows}")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Проверка матриц и входных аргументов task_6")
     parser.add_argument("program", nargs="?", type=Path, default=TASK / "a.out",
@@ -107,6 +117,14 @@ def main():
         n = str(len(expected))
         cases.append((name, [n, n, f"{1e-11 * scale:.16e}", "0", str(DATA / name)],
                       check_spectrum, (scale, expected)))
+
+    cases.append(("формула 2", ["3", "3", "1e-11", "2"], check_formula_two, ()))
+    for name, first_eigenvalue in [("mixed_scale_zero.txt", 0.), ("mixed_scale_one.txt", 1.)]:
+        cases.append((name, ["2", "2", "1e-10", "0", str(TASK / "tests" / name)],
+                      check_spectrum, (1., (first_eigenvalue, 1e20))))
+    cases.append(("нулевой eps, разные масштабы",
+                  ["2", "2", "0", "0", str(TASK / "tests" / "mixed_scale_zero.txt")],
+                  check_spectrum, (1., (0., 1e20))))
 
     for name in INVALID_FILES + ["non_symmetric_2.txt"]:
         diagnostic = "Error:" if name == "non_symmetric_2.txt" else "Error: couldn't init matrix"

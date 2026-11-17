@@ -51,7 +51,7 @@ namespace
             if (row == column)
                 return 2.;
             if (std::abs(row - column) == 1)
-                return 1.;
+                return -1.;
             return 0.;
             break;
         case 3:
