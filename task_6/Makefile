@@ -31,6 +31,9 @@ HEADERS = *.h
 a.out: $(SOURCES) $(HEADERS) Makefile
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(FPFLAGS) $(SOURCES) $(LDFLAGS) $(LDLIBS) -o $@
 
+fpe_check: $(SOURCES) $(HEADERS) Makefile
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(FPFLAGS) $(SOURCES) $(LDFLAGS) $(LDLIBS) -DENABLE_FPE -o $@
+
 clean:
 	$(RM) -r build a.out
 
