@@ -169,21 +169,21 @@ namespace
     }
 
     // границы Гершгорина для matrix - origin * E
-    void gershgorin_bounds(const double* matrix, int matrix_size, double origin, double& left, double& right)
-    {
-        left = right = 0.;
-        double previous = 0.;
-        for (int i = 0; i < matrix_size; i++)
-        {
-            double next = i + 1 < matrix_size ? std::fabs(matrix[(i + 1) * matrix_size + i]) : 0.;
-            double radius = previous + next;
-            double diagonal = matrix[i * matrix_size + i] - origin;
+    // void gershgorin_bounds(const double* matrix, int matrix_size, double origin, double& left, double& right)
+    // {
+    //     left = right = 0.;
+    //     double previous = 0.;
+    //     for (int i = 0; i < matrix_size; i++)
+    //     {
+    //         double next = i + 1 < matrix_size ? std::fabs(matrix[(i + 1) * matrix_size + i]) : 0.;
+    //         double radius = previous + next;
+    //         double diagonal = matrix[i * matrix_size + i] - origin;
 
-            left = std::min(left, diagonal - radius);
-            right = std::max(right, diagonal + radius);
-            previous = next;
-        }
-    }
+    //         left = std::min(left, diagonal - radius);
+    //         right = std::max(right, diagonal + radius);
+    //         previous = next;
+    //     }
+    // }
 }
 
 int solve(double* matrix, double* eigenvalues, int matrix_size, double eps, int& iterations_count, double& t1, double& t2)
@@ -206,11 +206,11 @@ int solve(double* matrix, double* eigenvalues, int matrix_size, double eps, int&
     }
 
     // масштабируем матрицу, чтобы не было работы fpe
-    int exponent = 0;
-    std::frexp(norm_A, &exponent);
-    double scale = std::ldexp(1., exponent - 1);
-    for (int i = 0; i < matrix_size * matrix_size; i++)
-        matrix[i] /= scale;
+    // int exponent = 0;
+    // std::frexp(norm_A, &exponent);
+    // double scale = std::ldexp(1., exponent - 1);
+    // for (int i = 0; i < matrix_size * matrix_size; i++)
+    //     matrix[i] /= scale;
 
     // приводим к трехдиагональному виду
     if (!matrix_to_almost_triangular(matrix, matrix_size, eps, t1))
@@ -220,38 +220,39 @@ int solve(double* matrix, double* eigenvalues, int matrix_size, double eps, int&
 
     // идея: сдвигаем матрицу так, чтобы весь спект находился в отрезке между -1 и 1
     // вычисляем границы относительно первого диагонального элемента
-    double origin = matrix[0];
-    double left = 0., right = 0.;
-    gershgorin_bounds(matrix, matrix_size, origin, left, right);
-    double center = (left + right) / 2.;
-    double half_width = (right - left) / 2.;
-    if (half_width <= 0.)
-    {
-        for (int i = 0; i < matrix_size; i++)
-            eigenvalues[i] = origin * scale;
+    // double origin = matrix[0];
+    // double left = 0., right = 0.;
+    // gershgorin_bounds(matrix, matrix_size, origin, left, right);
+    // double center = (left + right) / 2.;
+    // double half_width = (right - left) / 2.;
+    // if (half_width <= 0.)
+    // {
+    //     for (int i = 0; i < matrix_size; i++)
+    //         eigenvalues[i] = origin * scale;
 
-        t2 = (double)(clock() - start) / CLOCKS_PER_SEC;
-        return 0;
-    }
+    //     t2 = (double)(clock() - start) / CLOCKS_PER_SEC;
+    //     return 0;
+    // }
 
     // храним сдвиг и остаток округления
-    double mu = origin + center;
-    double rounded_center = mu - origin;
-    double mu_error = (origin - (mu - rounded_center)) + (center - rounded_center);
+    // double mu = origin + center;
+    // double rounded_center = mu - origin;
+    // double mu_error = (origin - (mu - rounded_center)) + (center - rounded_center);
 
-    // масштабируем саму матрицу
-    for (int i = 0; i < matrix_size; i++)
-    {
-        double* row = matrix + i * matrix_size;
-        row[i] = ((row[i] - mu) - mu_error) / half_width;
-        if (i > 0)
-            row[i - 1] /= half_width;
-    }
+    // // масштабируем саму матрицу
+    // for (int i = 0; i < matrix_size; i++)
+    // {
+    //     double* row = matrix + i * matrix_size;
+    //     row[i] = ((row[i] - mu) - mu_error) / half_width;
+    //     if (i > 0)
+    //         row[i - 1] /= half_width;
+    // }
 
-    double b_0 = 1. + 8. * DBL_EPSILON; // границы поиска
+    // double scaled_eps = std::min(eps, norm_A) / scale;
+    // scaled_eps = std::min(scaled_eps, (b_0 - a_0) * half_width) / half_width;
+    double b_0 = (1 + (double)matrix_size * DBL_EPSILON) * norm_A; // границы поиска
     double a_0 = -b_0;
-    double scaled_eps = std::min(eps, norm_A) / scale;
-    scaled_eps = std::min(scaled_eps, (b_0 - a_0) * half_width) / half_width;
+    double scaled_eps = eps * norm_A;
     int found = bisect_eigenvalues(matrix, eigenvalues, matrix_size, a_0, b_0, scaled_eps, iterations_count);
 
     t2 = (double)(clock() - start) / CLOCKS_PER_SEC;
@@ -259,9 +260,10 @@ int solve(double* matrix, double* eigenvalues, int matrix_size, double eps, int&
     if (found != matrix_size)
         return -1;
 
+    // можно еще обрубать собственные значения, кооторые больше по модулю max нормыыыы
     // приводим собтвенные значения к оригинальному виду
-    for (int i = 0; i < matrix_size; i++)
-        eigenvalues[i] = (mu + (half_width * eigenvalues[i] + mu_error)) * scale;
+    // for (int i = 0; i < matrix_size; i++)
+    //     eigenvalues[i] = (mu + (half_width * eigenvalues[i] + mu_error)) * scale;
 
     return 0;
 }

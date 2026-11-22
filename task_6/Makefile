@@ -35,7 +35,7 @@ fpe_check: $(SOURCES) $(HEADERS) Makefile
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(FPFLAGS) $(SOURCES) $(LDFLAGS) $(LDLIBS) -DENABLE_FPE -o $@
 
 clean:
-	$(RM) -r build a.out
+	$(RM) -r build a.out fpe_check
 
 zip:
 	zip Korenev_ID.zip *.cpp *.h Makefile
