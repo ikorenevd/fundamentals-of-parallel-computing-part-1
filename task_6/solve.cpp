@@ -19,13 +19,14 @@ namespace
             // print_matrix(matrix, matrix_size, matrix_size, matrix_size, "Matrix\n");
 
             int p = step + 1;
+            double* row_step = matrix + step * matrix_size;
             double* row_p = matrix + p * matrix_size;
-            double x = row_p[step]; // a_{p, step}
+            double x = row_step[p]; // a_{step, p}
 
             for (int q = p + 1; q < matrix_size; q++)
             {
                 double* row_q = matrix + q * matrix_size;
-                double y = row_q[step]; // a_{q, step}
+                double y = row_step[q]; // a_{step, q}
                 if (std::fabs(y) <= 0.)
                     continue;
 
@@ -37,46 +38,44 @@ namespace
                        s = v / length;
 
                 x = scale * length;
-                row_q[step] = 0.;
+                row_step[q] = 0.;
 
-                // обновляем пары элементов в нижнем треугольнике
+                // обновляем пары элементов в верхнем треугольнике
                 for (int j = p + 1; j < q; j++)
                 {
                     double* row_j = matrix + j * matrix_size;
-                    double jp = row_j[p],
-                           qj = row_q[j];
-                    row_j[p] = c * jp + s * qj;
-                    row_q[j] = -s * jp + c * qj;
+                    double pj = row_p[j],
+                           jq = row_j[q];
+                    row_p[j] = c * pj + s * jq;
+                    row_j[q] = -s * pj + c * jq;
                 }
 
                 for (int j = q + 1; j < matrix_size; j++)
                 {
-                    double* row_j = matrix + j * matrix_size;
-                    double jp = row_j[p],
-                           jq = row_j[q];
-                    row_j[p] = c * jp + s * jq;
-                    row_j[q] = -s * jp + c * jq;
+                    double pj = row_p[j],
+                           qj = row_q[j];
+                    row_p[j] = c * pj + s * qj;
+                    row_q[j] = -s * pj + c * qj;
                 }
 
                 // выполняем двустороннее вращение блока на строках p и q и на столбцах p и q
                 double pp = row_p[p],
-                       qp = row_q[p],
+                       pq = row_p[q],
                        qq = row_q[q],
                        cc = c * c,
                        ss = s * s,
                        cs = c * s,
-                       cross = (2 * cs) * qp;
+                       cross = (2 * cs) * pq;
 
                 // просто явное перемножение G A G^t
                 row_p[p] = cc * pp + ss * qq + cross;
-                row_q[p] = (cc - ss) * qp + (cs * qq - cs * pp);
+                row_p[q] = (cc - ss) * pq + (cs * qq - cs * pp);
                 row_q[q] = ss * pp + cc * qq - cross;
             }
 
-            row_p[step] = x;
+            row_step[p] = x;
         }
 
-        // верхний треугольник можно восстановить по симметрии, но для LU нужны только диагональ и элементы ниже
         
         t1 = (double)(clock() - start) / CLOCKS_PER_SEC;
         
@@ -167,23 +166,6 @@ namespace
 
         return n_a - n_a_0;
     }
-
-    // границы Гершгорина для matrix - origin * E
-    // void gershgorin_bounds(const double* matrix, int matrix_size, double origin, double& left, double& right)
-    // {
-    //     left = right = 0.;
-    //     double previous = 0.;
-    //     for (int i = 0; i < matrix_size; i++)
-    //     {
-    //         double next = i + 1 < matrix_size ? std::fabs(matrix[(i + 1) * matrix_size + i]) : 0.;
-    //         double radius = previous + next;
-    //         double diagonal = matrix[i * matrix_size + i] - origin;
-
-    //         left = std::min(left, diagonal - radius);
-    //         right = std::max(right, diagonal + radius);
-    //         previous = next;
-    //     }
-    // }
 }
 
 int solve(double* matrix, double* eigenvalues, int matrix_size, double eps, int& iterations_count, double& t1, double& t2, double* diagonal, double* sub_diag)
@@ -221,42 +203,10 @@ int solve(double* matrix, double* eigenvalues, int matrix_size, double eps, int&
     for (int i = 0; i < matrix_size; i++)
     {
         diagonal[i] = matrix[i * matrix_size + i];
-        sub_diag[i] = i + 1 < matrix_size ? matrix[(i + 1) * matrix_size + i] : 0.;
+        sub_diag[i] = i + 1 < matrix_size ? matrix[(i) * matrix_size + (i + 1)] : 0.;
     }
 
-    // идея: сдвигаем матрицу так, чтобы весь спект находился в отрезке между -1 и 1
-    // вычисляем границы относительно первого диагонального элемента
-    // double origin = matrix[0];
-    // double left = 0., right = 0.;
-    // gershgorin_bounds(matrix, matrix_size, origin, left, right);
-    // double center = (left + right) / 2.;
-    // double half_width = (right - left) / 2.;
-    // if (half_width <= 0.)
-    // {
-    //     for (int i = 0; i < matrix_size; i++)
-    //         eigenvalues[i] = origin * scale;
-
-    //     t2 = (double)(clock() - start) / CLOCKS_PER_SEC;
-    //     return 0;
-    // }
-
-    // храним сдвиг и остаток округления
-    // double mu = origin + center;
-    // double rounded_center = mu - origin;
-    // double mu_error = (origin - (mu - rounded_center)) + (center - rounded_center);
-
-    // // масштабируем саму матрицу
-    // for (int i = 0; i < matrix_size; i++)
-    // {
-    //     double* row = matrix + i * matrix_size;
-    //     row[i] = ((row[i] - mu) - mu_error) / half_width;
-    //     if (i > 0)
-    //         row[i - 1] /= half_width;
-    // }
-
-    // double scaled_eps = std::min(eps, norm_A) / scale;
-    // scaled_eps = std::min(scaled_eps, (b_0 - a_0) * half_width) / half_width;
-    double b_0 = (1 + (double)matrix_size * DBL_EPSILON) * norm_A; // границы поиска
+    double b_0 = (1. + (double)matrix_size * DBL_EPSILON) * norm_A; // границы поиска
     double a_0 = -b_0;
     double scaled_eps = eps * norm_A;
     int found = bisect_eigenvalues(diagonal, sub_diag, eigenvalues, matrix_size, a_0, b_0, scaled_eps, iterations_count);
@@ -265,11 +215,6 @@ int solve(double* matrix, double* eigenvalues, int matrix_size, double eps, int&
 
     if (found != matrix_size)
         return -1;
-
-    // можно еще обрубать собственные значения, кооторые больше по модулю max нормыыыы
-    // приводим собтвенные значения к оригинальному виду
-    // for (int i = 0; i < matrix_size; i++)
-    //     eigenvalues[i] = (mu + (half_width * eigenvalues[i] + mu_error)) * scale;
 
     return 0;
 }
