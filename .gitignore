@@ -71,6 +71,7 @@
 *.exe
 *.out
 a.out
+./fpe_check
 
 # Debugging
 *.dSYM/
