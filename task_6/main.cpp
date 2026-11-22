@@ -164,7 +164,7 @@ int main(int argc, char** argv)
 #endif
 
     // решаем задачу
-    if (solve(matrix, eigenvalues, matrix_size, eps, iterations_count, t1, t2) != 0)
+    if (solve(matrix, eigenvalues, matrix_size, eps, iterations_count, t1, t2, diagonal, sub_diag) != 0)
     {
         std::fprintf(stderr, "Error: couldn't find all eigenvalues\n");
         delete[] matrix;

@@ -85,7 +85,7 @@ namespace
 
     // n_-(lambda) = S(T - lambda * I), где S число перемен знака ведущих миноров
     // include_lambda задает правый предел n_-(lambda + 0) для правой границы отрезка
-    int n_minus(const double* matrix, int matrix_size, double lambda, bool include_lambda)
+    int n_minus(const double* diagonal, const double* sub_diag, int matrix_size, double lambda, bool include_lambda)
     {
         double pivot_min = 4. * DBL_MIN; // матрица предварительно масштабирована
         int n_lambda = 0;
@@ -93,8 +93,8 @@ namespace
 
         for (int i = 0; i < matrix_size; i++)
         {
-            double l_ii = matrix[i * matrix_size + i] - lambda - correction;
-            double l_next_i = i + 1 < matrix_size ? matrix[(i + 1) * matrix_size + i] : 0.;
+            double l_ii = diagonal[i] - lambda - correction;
+            double l_next_i = i + 1 < matrix_size ? sub_diag[i] : 0.;
 
             if (std::fabs(l_ii) <= 0.)
             {
@@ -124,11 +124,11 @@ namespace
     }
 
     // находим собственные значения на отрезке [a_0, b_0] в порядке возрастания
-    int bisect_eigenvalues(const double* matrix, double* eigenvalues, int matrix_size,
+    int bisect_eigenvalues(const double* diagonal, const double* sub_diag, double* eigenvalues, int matrix_size,
                           double a_0, double b_0, double eps, int& iterations_count)
     {
-        int n_a_0 = n_minus(matrix, matrix_size, a_0, 0);
-        int n_b_0 = n_minus(matrix, matrix_size, b_0, 1);
+        int n_a_0 = n_minus(diagonal, sub_diag, matrix_size, a_0, 0);
+        int n_b_0 = n_minus(diagonal, sub_diag, matrix_size, b_0, 1);
         int n_a = n_a_0;
         double a = a_0;
 
@@ -147,7 +147,7 @@ namespace
                 if (c <= a || c >= b)
                     break;
 
-                int n_c = n_minus(matrix, matrix_size, c, 0);
+                int n_c = n_minus(diagonal, sub_diag, matrix_size, c, 0);
                 if (n_c < k)
                     a = c;
                 else
@@ -186,11 +186,11 @@ namespace
     // }
 }
 
-int solve(double* matrix, double* eigenvalues, int matrix_size, double eps, int& iterations_count, double& t1, double& t2)
+int solve(double* matrix, double* eigenvalues, int matrix_size, double eps, int& iterations_count, double& t1, double& t2, double* diagonal, double* sub_diag)
 {
     t1 = t2 = 0.;
     iterations_count = 0;
-    if (matrix == 0 || eigenvalues == 0 || matrix_size <= 0 || !std::isfinite(eps) || eps < 0.)
+    if (matrix == 0 || eigenvalues == 0 || matrix_size <= 0 || !std::isfinite(eps) || eps < 0. || diagonal == 0 || sub_diag == 0)
         return -1;
 
     double norm_A = compute_matrix_norm(matrix, matrix_size);
@@ -217,6 +217,12 @@ int solve(double* matrix, double* eigenvalues, int matrix_size, double eps, int&
         return -1;
 
     clock_t start = clock();
+
+    for (int i = 0; i < matrix_size; i++)
+    {
+        diagonal[i] = matrix[i * matrix_size + i];
+        sub_diag[i] = i + 1 < matrix_size ? matrix[(i + 1) * matrix_size + i] : 0.;
+    }
 
     // идея: сдвигаем матрицу так, чтобы весь спект находился в отрезке между -1 и 1
     // вычисляем границы относительно первого диагонального элемента
@@ -253,7 +259,7 @@ int solve(double* matrix, double* eigenvalues, int matrix_size, double eps, int&
     double b_0 = (1 + (double)matrix_size * DBL_EPSILON) * norm_A; // границы поиска
     double a_0 = -b_0;
     double scaled_eps = eps * norm_A;
-    int found = bisect_eigenvalues(matrix, eigenvalues, matrix_size, a_0, b_0, scaled_eps, iterations_count);
+    int found = bisect_eigenvalues(diagonal, sub_diag, eigenvalues, matrix_size, a_0, b_0, scaled_eps, iterations_count);
 
     t2 = (double)(clock() - start) / CLOCKS_PER_SEC;
 
