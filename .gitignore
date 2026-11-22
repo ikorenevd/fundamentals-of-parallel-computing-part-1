@@ -187,3 +187,4 @@ tmp/
 __pycache__/
 tester/
 *.csv
+task_6/fpe_check
