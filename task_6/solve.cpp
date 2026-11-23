@@ -5,10 +5,70 @@
 // локальные функции
 namespace
 {
-    bool matrix_to_almost_triangular(double* matrix, int matrix_size, double eps, double& t1)
+    inline void rotate_pair(double& x, double& y, double c, double s)
+    {
+        double old_x = x,
+               old_y = y;
+
+        x =  c * old_x + s * old_y;
+        y = -s * old_x + c * old_y;
+    }
+
+    void finish_rows(double* matrix, int matrix_size, int p, const double* cosines, const double* sines)
+    {
+        double* row_p = matrix + p * matrix_size;
+        int j = p + 1;
+        for (; j + 3 < matrix_size; j += 4)
+        {
+            double* rows[4];
+            double x[4];
+            for (int r = 0; r < 4; r++)
+            {
+                rows[r] = matrix + (j + r) * matrix_size;
+                x[r]   = row_p[j + r];
+
+                double* row_r = rows[r];
+                for (int q = j + r + 1; q < j + 4; q++)
+                    rotate_pair(x[r], row_r[q], cosines[q], sines[q]);
+            }
+
+            for (int q = j + 4; q < matrix_size; q++)
+            {
+                double c = cosines[q], s = sines[q];
+
+                for (int r = 0; r < 4; r++)
+                    rotate_pair(x[r], rows[r][q], c, s);
+            }
+
+            // for (int r = 0; r < 4; r++)
+            //     row_p[j + r] = x[r];
+            row_p[j + 0] = x[0];
+            row_p[j + 1] = x[1];
+            row_p[j + 2] = x[2];
+            row_p[j + 3] = x[3];
+        }
+
+        for (; j < matrix_size; j++)
+        {
+            double* row_j = matrix + j * matrix_size;
+            double x = row_p[j];
+
+            for (int q = j + 1; q < matrix_size; q++)
+                rotate_pair(x, row_j[q], cosines[q], sines[q]);
+            row_p[j] = x;
+        }
+    }
+
+    // todo: можно применять вначале считать коэффициенты поворота, а только потом поворачивать сразу целые блоки
+    // matrix — построчный массив matrix_size * matrix_size, используется и изменяется только верхний треугольник
+    // eps — абс. эпсилон, значения по модулю меньше принимаем за 0 и пропускаем
+    // cosines и sines — рабочие массивы длины matrix_size для коэффициентов вращений
+    // t1 — процессорное время преобразования в секундах.
+    // Возвращает 1 при успехе, 0 при нулевых указателях, matrix_size <= 0 или eps < 0.
+    bool matrix_to_almost_triangular(double* matrix, int matrix_size, double eps, double& t1, double* cosines, double* sines)
     {
         t1 = 0.;
-        if (matrix == 0 || matrix_size <= 0 || eps < 0.)
+        if (matrix == 0 || cosines == 0 || sines == 0 || matrix_size <= 0 || eps < 0.)
             return 0;
 
         clock_t start = clock();
@@ -16,18 +76,24 @@ namespace
         // приводим к почти треугольному симметричному виду, т.е. к трехдиагональному
         for (int step = 0; step + 2 < matrix_size; step++)
         {
-            // print_matrix(matrix, matrix_size, matrix_size, matrix_size, "Matrix\n");
-
             int p = step + 1;
             double* row_step = matrix + step * matrix_size;
-            double* row_p = matrix + p * matrix_size;
+            double* row_p    = matrix +    p * matrix_size;
             double x = row_step[p]; // a_{step, p}
+
+            bool dense = true;
+            for (int q = p + 1; q < matrix_size; q++)
+                if (std::fabs(row_step[q]) <= eps)
+                {
+                    dense = false;
+                    break;
+                }
 
             for (int q = p + 1; q < matrix_size; q++)
             {
                 double* row_q = matrix + q * matrix_size;
                 double y = row_step[q]; // a_{step, q}
-                if (std::fabs(y) <= 0.)
+                if (std::fabs(y) <= eps)
                     continue;
 
                 double scale = std::max(std::fabs(x), std::fabs(y)),
@@ -40,21 +106,21 @@ namespace
                 x = scale * length;
                 row_step[q] = 0.;
 
-                // обновляем пары элементов в верхнем треугольнике
-                for (int j = p + 1; j < q; j++)
+                if (dense)
                 {
-                    double* row_j = matrix + j * matrix_size;
-                    double pj = row_p[j],
-                           jq = row_j[q];
-                    row_p[j] = c * pj + s * jq;
-                    row_j[q] = -s * pj + c * jq;
+                    cosines[q] = c;
+                    sines[q]   = s;
                 }
+                else
+                    for (int j = p + 1; j < q; j++)
+                        rotate_pair(row_p[j], matrix[j * matrix_size + q], c, s);
 
                 for (int j = q + 1; j < matrix_size; j++)
                 {
                     double pj = row_p[j],
                            qj = row_q[j];
-                    row_p[j] = c * pj + s * qj;
+
+                    row_p[j] =  c * pj + s * qj;
                     row_q[j] = -s * pj + c * qj;
                 }
 
@@ -73,12 +139,14 @@ namespace
                 row_q[q] = ss * pp + cc * qq - cross;
             }
 
+            if (dense)
+                finish_rows(matrix, matrix_size, p, cosines, sines);
+
             row_step[p] = x;
         }
 
-        
         t1 = (double)(clock() - start) / CLOCKS_PER_SEC;
-        
+
         return 1;
     }
 
@@ -187,15 +255,9 @@ int solve(double* matrix, double* eigenvalues, int matrix_size, double eps, int&
         return 0;
     }
 
-    // масштабируем матрицу, чтобы не было работы fpe
-    // int exponent = 0;
-    // std::frexp(norm_A, &exponent);
-    // double scale = std::ldexp(1., exponent - 1);
-    // for (int i = 0; i < matrix_size * matrix_size; i++)
-    //     matrix[i] /= scale;
 
     // приводим к трехдиагональному виду
-    if (!matrix_to_almost_triangular(matrix, matrix_size, eps, t1))
+    if(!matrix_to_almost_triangular(matrix, matrix_size, eps * norm_A, t1, diagonal, sub_diag))
         return -1;
 
     clock_t start = clock();
