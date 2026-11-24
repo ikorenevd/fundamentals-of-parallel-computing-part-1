@@ -255,7 +255,6 @@ int solve(double* matrix, double* eigenvalues, int matrix_size, double eps, int&
         return 0;
     }
 
-
     // приводим к трехдиагональному виду
     if(!matrix_to_almost_triangular(matrix, matrix_size, eps * norm_A, t1, diagonal, sub_diag))
         return -1;
@@ -268,6 +267,7 @@ int solve(double* matrix, double* eigenvalues, int matrix_size, double eps, int&
         sub_diag[i] = i + 1 < matrix_size ? matrix[(i) * matrix_size + (i + 1)] : 0.;
     }
 
+    // todo: исправить границы на границы из т Грегошина
     double b_0 = (1. + (double)matrix_size * DBL_EPSILON) * norm_A; // границы поиска
     double a_0 = -b_0;
     double scaled_eps = eps * norm_A;
